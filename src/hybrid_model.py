@@ -1,6 +1,7 @@
 import clip
 import torch
 import torch.nn as nn
+import os
 from torch.utils.data import Dataset
 from PIL import Image
 
@@ -10,10 +11,34 @@ _MODEL = "ViT-B/16"
 _DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 """LSTM Parameters"""
-LSTM_INPUT_SIZE = 512
-LSTM_HIDDEN_SIZE = 512
-LSTM_NUM_LAYERS = 2
-LSTM_DROPOUT = 0.2
+_LSTM_INPUT_SIZE = 512
+_LSTM_HIDDEN_SIZE = 512
+_LSTM_NUM_LAYERS = 2
+_LSTM_DROPOUT = 0.2
+
+# Prompts for distracted driving behaviors
+_DRIVING_CATEGORIES_PROMPTS = [
+    "a photo of a person driving safely with both hands on the steering wheel",  # c0
+    "a photo of a person texting using their mobile phone while driving",        # c1
+    "a photo of a person talking on the phone while driving",                    # c2
+    "a photo of a person operating the car radio while driving",                 # c3
+    "a photo of a person drinking while driving",                                # c4
+    "a photo of a person reaching for an object behind them while driving",      # c5
+    "a photo of a person with their head down while driving"                     # c6
+]
+
+# Descriptions for each category
+_CATEGORY_PROMPTS = {
+    "c0": _DRIVING_CATEGORIES_PROMPTS[0],
+    "c1": _DRIVING_CATEGORIES_PROMPTS[1],
+    "c1.1": _DRIVING_CATEGORIES_PROMPTS[1],
+    "c2": _DRIVING_CATEGORIES_PROMPTS[2],
+    "c2.1": _DRIVING_CATEGORIES_PROMPTS[2],
+    "c3": _DRIVING_CATEGORIES_PROMPTS[3],
+    "c4": _DRIVING_CATEGORIES_PROMPTS[4],
+    "c5": _DRIVING_CATEGORIES_PROMPTS[5],
+    "c6": _DRIVING_CATEGORIES_PROMPTS[6]
+}
 
 
 class HybridModel(nn.Module):
@@ -24,21 +49,25 @@ class HybridModel(nn.Module):
         # REQUIRED; Initializing parent class
         super().__init__()
 
+        print("Loading CLIP model...")
+
         # Loading CLIP model
-        self.model, self.preprocessor = clip.load(
+        self.clip_model, self.preprocessor = clip.load(
             _MODEL, device=_DEVICE, jit=False)
 
         # Freezing default CLIP model
-        for param in self.model.parameters():
+        for param in self.clip_model.parameters():
             param.requires_grad = False
+
+        print("Loading LSTM model...")
 
         # Initalizing LSTM Neural Network
         self.lstm = torch.nn.LSTM(
-            input_size=LSTM_INPUT_SIZE,
-            hidden_size=LSTM_HIDDEN_SIZE,
-            num_layers=LSTM_NUM_LAYERS,
+            input_size=_LSTM_INPUT_SIZE,
+            hidden_size=_LSTM_HIDDEN_SIZE,
+            num_layers=_LSTM_NUM_LAYERS,
             batch_first=True,
-            dropout=LSTM_DROPOUT
+            dropout=_LSTM_DROPOUT
         )
 
     def forward(self, frames: Image, prompts: str):
@@ -48,10 +77,6 @@ class HybridModel(nn.Module):
         # TODO: process by LSTM
         return clip_result
 
-    def preprocess(self, image):
-        """Returns image that is preprocessed"""
-        return self.preprocessor(image)
-
     def train():
         """Trains the CLIP-LSTM hybrid model"""
         pass
@@ -60,21 +85,59 @@ class HybridModel(nn.Module):
 class DisDriveDataset(Dataset):
     """The class of the dataset which will be used on the Hybrid Model"""
 
-    def __init__(self, dataset_directory, hybrid_model):
+    def __init__(self, dataset_directory: str, hybrid_model: HybridModel):
         """Initilizes dataset"""
         super().__init__()
 
-        self.dataset_directory = dataset_directory
+        self.dataset_directory = dataset_directory  # Filepath of Dataset
         self.hybrid_model = hybrid_model  # CLIP and LSTM Hybrid Model
 
+        # List of Image-Text Pairs in Tensor form
+        self.dataset_data = []
+
         # Process Dataset
-        self.process_dataset(self)
+        self.process_dataset()
 
     def __getitem__(self, index):
-        pass
+        """Returns Dataset Data at specific index"""
+        return self.dataset_data[index]
 
     def __len__(self):
         """Returns length of dataset"""
+        pass
 
     def process_dataset(self):
         """Creates dataset using supplied dataset directory"""
+
+        # For every Folder
+        for category in os.listdir(self.dataset_directory):
+            # Append OS path to folder name
+            category_path = os.path.join(self.dataset_directory, category)
+
+            # If file is a folder directory
+            if os.path.isdir(category_path):
+                # Get equivalent prompt
+                prompt = _CATEGORY_PROMPTS.get(category)
+                # For each image in folder
+                for image in os.listdir(category_path):
+                    # Get concatenated image path
+                    path = os.path.join(category_path, image)
+
+                    # Convert Image-Prompt pair to Tensor then add as Dataset data
+                    self.dataset_data.append(
+                        self.get_tensor_pairs(path, prompt))
+                    break
+            break
+
+    def get_tensor_pairs(self, image_path, prompt):
+        """Returns the image-text pair in Tensor form"""
+        # Open an Preprocess image
+        image = self.hybrid_model.preprocessor(
+            Image.open(image_path)).unsqueeze(0).to(_DEVICE)
+        # Preprocess prompt
+        prompt = clip.tokenize(prompt).to(_DEVICE)
+
+        print(f"Image: {image.shape}\n")
+        print(f"Prompt: {prompt.shape}")
+
+        return image, prompt
