@@ -169,3 +169,12 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+# DisDrive Section
+# Datasets
+orig_datasets/
+images/
+testing_dataset/
+training_dataset/
+# Models
+*.pth
