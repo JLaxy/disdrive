@@ -161,6 +161,9 @@ def train_model(model, train_loader, num_epochs=3):
             batch_images = batch_images.to(device)
             batch_texts = batch_texts.to(device)
 
+            print(batch_images.shape)
+            print(batch_texts.shape)
+
             # Mixed precision training
             with autocast():
                 # Original pairs (positive examples)

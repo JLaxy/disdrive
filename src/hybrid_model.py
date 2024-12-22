@@ -6,7 +6,7 @@ from torch.utils.data import Dataset
 from PIL import Image
 
 """Hybrid Model Settings"""
-_MODEL = "ViT-B/16"
+_MODEL = "ViT-B/16"  # 224x224
 # Automatically changes to GPU if available
 _DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -74,6 +74,7 @@ class HybridModel(nn.Module):
         """Processes input to the hybrid model to detect distracted driving"""
         clip_result = self.model(frames, prompts)
 
+        print("forwarded!")
         # TODO: process by LSTM
         return clip_result
 
@@ -100,17 +101,25 @@ class DisDriveDataset(Dataset):
 
     def __getitem__(self, index):
         """Returns Dataset Data at specific index"""
-        return self.dataset_data[index]
+        (image, prompt) = self.dataset_data[index] # Retrieve image and prompt
+
+        # Preprocess then put to device
+        image = self.hybrid_model.preprocessor(image).to(_DEVICE)
+        prompt = clip.tokenize(prompt).squeeze(0).to(_DEVICE)
+
+        return image, prompt
 
     def __len__(self):
         """Returns length of dataset"""
-        pass
+        return len(self.dataset_data)
 
     def process_dataset(self):
         """Creates dataset using supplied dataset directory"""
 
+        print("Building Dataset...")
         # For every Folder
         for category in os.listdir(self.dataset_directory):
+            print(f"Category: {category}")
             # Append OS path to folder name
             category_path = os.path.join(self.dataset_directory, category)
 
@@ -123,21 +132,5 @@ class DisDriveDataset(Dataset):
                     # Get concatenated image path
                     path = os.path.join(category_path, image)
 
-                    # Convert Image-Prompt pair to Tensor then add as Dataset data
-                    self.dataset_data.append(
-                        self.get_tensor_pairs(path, prompt))
-                    break
-            break
-
-    def get_tensor_pairs(self, image_path, prompt):
-        """Returns the image-text pair in Tensor form"""
-        # Open an Preprocess image
-        image = self.hybrid_model.preprocessor(
-            Image.open(image_path)).unsqueeze(0).to(_DEVICE)
-        # Preprocess prompt
-        prompt = clip.tokenize(prompt).to(_DEVICE)
-
-        print(f"Image: {image.shape}\n")
-        print(f"Prompt: {prompt.shape}")
-
-        return image, prompt
+                    # Add Image and Prompt pair to dataset data
+                    self.dataset_data.append((Image.open(path), prompt))
