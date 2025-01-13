@@ -16,19 +16,19 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 # Load CLIP model
 clip_model, preprocess = clip.load("ViT-B/32", device=device)
 
-# Define LSTM for Smoothing Predictions
-class PredictionSmoothingLSTM(nn.Module):
-    def __init__(self, num_classes, hidden_dim):
-        super(PredictionSmoothingLSTM, self).__init__()
-        self.lstm = nn.LSTM(num_classes, hidden_dim, batch_first=True)
+# LSTM for Temporal Smoothing
+class TemporalSmoothingLSTM(nn.Module):
+    def __init__(self, input_dim, hidden_dim, num_classes):
+        super(TemporalSmoothingLSTM, self).__init__()
+        self.lstm = nn.LSTM(input_dim, hidden_dim, batch_first=True)
         self.fc = nn.Linear(hidden_dim, num_classes)
 
     def forward(self, x):
-        out, _ = self.lstm(x)  # LSTM outputs smoothed features
-        out = self.fc(out)    # Map back to class logits
+        out, _ = self.lstm(x)  # [batch_size, sequence_length, hidden_dim]
+        out = self.fc(out)    # [batch_size, sequence_length, num_classes]
         return out
 
-# Define the dataset class
+# Dataset Class
 class DrivingDataset(Dataset):
     def __init__(self, root_dir, sequence_length, preprocess, classes):
         self.root_dir = root_dir
@@ -60,17 +60,24 @@ class DrivingDataset(Dataset):
             image = self.preprocess(Image.fromarray(image.numpy().transpose(1, 2, 0)))
             frames.append(image)
         
-        # Combine frames into a tensor
         frames_tensor = torch.stack(frames, dim=0)
         return frames_tensor, label
+
+# Predict with CLIP
+def predict_with_clip(clip_model, preprocess, frame):
+    with torch.no_grad():
+        frame_preprocessed = preprocess(frame).unsqueeze(0).to(device)
+        logits = clip_model.encode_image(frame_preprocessed)
+    return logits
 
 # Parameters
 sequence_length = 10
 num_classes = 5  # Example: Focused + 4 distracted behaviors
 hidden_dim = 64
+input_dim = 512  # Output dimension of CLIP (ViT-B/32)
 batch_size = 16
 
-# Initialize dataset and data loader
+# Dataset and DataLoader
 dataset = DrivingDataset(
     root_dir="dataset",  # Update with the actual dataset path
     sequence_length=sequence_length,
@@ -79,14 +86,14 @@ dataset = DrivingDataset(
 )
 data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
-# Initialize the LSTM model
-smoothing_model = PredictionSmoothingLSTM(num_classes, hidden_dim).to(device)
+# Initialize LSTM model
+smoothing_model = TemporalSmoothingLSTM(input_dim, hidden_dim, num_classes).to(device)
 
 # Optimizer and loss function
 optimizer = Adam(smoothing_model.parameters(), lr=0.001)
 criterion = nn.CrossEntropyLoss()
 
-# Training loop
+# Training Loop
 for epoch in range(10):  # Number of epochs
     smoothing_model.train()
     total_loss = 0
@@ -94,34 +101,33 @@ for epoch in range(10):  # Number of epochs
     for batch in data_loader:
         frames, labels = batch
         frames, labels = frames.to(device), labels.to(device)
-        
-        # Extract features with CLIP
-        batch_logits = []
-        for sequence in frames:  # Iterate over sequences
-            logits = []
-            for frame in sequence:  # Iterate over frames
-                with torch.no_grad():
-                    logit = clip_model.encode_image(frame.unsqueeze(0).to(device))
-                    logits.append(logit.squeeze(0))
-            batch_logits.append(torch.stack(logits, dim=0))  # Sequence logits
-        
-        batch_logits = torch.stack(batch_logits, dim=0)  # [batch_size, sequence_length, feature_dim]
 
-        # Train the LSTM
+        # Step 1: Get frame-level predictions from CLIP
+        batch_logits = []
+        for sequence in frames:
+            logits = []
+            for frame in sequence:
+                logit = predict_with_clip(clip_model, preprocess, frame)
+                logits.append(logit)
+            batch_logits.append(torch.stack(logits, dim=0))  # [sequence_length, input_dim]
+
+        batch_logits = torch.stack(batch_logits, dim=0)  # [batch_size, sequence_length, input_dim]
+
+        # Step 2: Temporal smoothing with LSTM
         optimizer.zero_grad()
-        outputs = smoothing_model(batch_logits)  # Shape: [batch_size, sequence_length, num_classes]
-        loss = criterion(outputs[:, -1, :], labels)  # Compare last time step predictions to ground truth
+        outputs = smoothing_model(batch_logits)  # [batch_size, sequence_length, num_classes]
+        loss = criterion(outputs[:, -1, :], labels)  # Compare final time step predictions
         loss.backward()
         optimizer.step()
 
         total_loss += loss.item()
-    
+
     print(f"Epoch {epoch + 1}/{10}, Loss: {total_loss / len(data_loader)}")
 
 # Save the model
 torch.save(smoothing_model.state_dict(), "smoothing_model.pth")
 
-# Evaluation (Example)
+# Evaluation Loop
 smoothing_model.eval()
 all_preds = []
 all_labels = []
@@ -130,20 +136,22 @@ with torch.no_grad():
     for batch in data_loader:
         frames, labels = batch
         frames, labels = frames.to(device), labels.to(device)
-        
-        # Extract features with CLIP
+
+        # Get CLIP logits
         batch_logits = []
         for sequence in frames:
             logits = []
             for frame in sequence:
-                logit = clip_model.encode_image(frame.unsqueeze(0).to(device))
-                logits.append(logit.squeeze(0))
+                logit = predict_with_clip(clip_model, preprocess, frame)
+                logits.append(logit)
             batch_logits.append(torch.stack(logits, dim=0))
-        
+
         batch_logits = torch.stack(batch_logits, dim=0)
+
+        # Smooth predictions
         outputs = smoothing_model(batch_logits)
-        preds = torch.argmax(outputs[:, -1, :], dim=-1)  # Predictions from last time step
-        
+        preds = torch.argmax(outputs[:, -1, :], dim=-1)  # Final prediction for each sequence
+
         all_preds.extend(preds.cpu().numpy())
         all_labels.extend(labels.cpu().numpy())
 

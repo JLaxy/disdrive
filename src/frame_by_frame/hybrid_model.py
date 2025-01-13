@@ -28,7 +28,7 @@ _DRIVING_CATEGORIES_PROMPTS = [
 ]
 
 # Descriptions for each category
-_CATEGORY_PROMPTS = {
+_CATEGORY_PROMPTS = { # 7 Classes
     "c0": _DRIVING_CATEGORIES_PROMPTS[0],
     "c1": _DRIVING_CATEGORIES_PROMPTS[1],
     "c1.1": _DRIVING_CATEGORIES_PROMPTS[1],
@@ -62,7 +62,7 @@ class HybridModel(nn.Module):
         print("Loading LSTM model...")
 
         # Initalizing LSTM Neural Network
-        self.lstm = torch.nn.LSTM(
+        self.lstm: torch.nn.LSTM = torch.nn.LSTM(
             input_size=_LSTM_INPUT_SIZE,
             hidden_size=_LSTM_HIDDEN_SIZE,
             num_layers=_LSTM_NUM_LAYERS,
@@ -77,10 +77,6 @@ class HybridModel(nn.Module):
         print("forwarded!")
         # TODO: process by LSTM
         return clip_result
-
-    def train():
-        """Trains the CLIP-LSTM hybrid model"""
-        pass
 
 
 class DisDriveDataset(Dataset):
@@ -101,7 +97,7 @@ class DisDriveDataset(Dataset):
 
     def __getitem__(self, index):
         """Returns Dataset Data at specific index"""
-        (image, prompt) = self.dataset_data[index] # Retrieve image and prompt
+        (image, prompt) = self.dataset_data[index]  # Retrieve image and prompt
 
         # Preprocess then put to device
         image = self.hybrid_model.preprocessor(image).to(_DEVICE)
