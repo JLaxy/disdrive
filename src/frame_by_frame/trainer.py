@@ -2,10 +2,8 @@
 
 from hybrid_model import DisDriveDataset, HybridModel
 from torch.utils.data import DataLoader
-import matplotlib.pyplot as plt
 
-TRAINING_DATASET_PATH = "./training_dataset"
-TESTING_DATASET_PATH = "./testing_dataset"
+TRAINING_DATASET_PATH = "./datasets/frame_sequences/train"
 
 if __name__ == "__main__":
     CLIP_LSTM: HybridModel = HybridModel()
@@ -13,7 +11,7 @@ if __name__ == "__main__":
     dataset = DisDriveDataset(TRAINING_DATASET_PATH, CLIP_LSTM)
     dataloader = DataLoader(dataset, batch_size=32, shuffle=True)
 
-    for image, prompt in dataloader:
-        print(image.shape)
-        print(prompt.shape)
+    for behavior, image in dataloader:
+        print(behavior)
+        print(image)
         break
