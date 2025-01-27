@@ -94,14 +94,22 @@ class DisDriveDataset(Dataset):
         (behavior,
          frame_paths) = self.dataset_data[index]  # Retrieve image and prompt
 
-        frames = []  # List containing preprocessed frames
+        frames = []  # List containing features of frames
 
         for frame_path in frame_paths:  # For every frame in list of paths
-            frames.append(self.hybrid_model.preprocessor(
-                # Preprocess image then add to list
-                Image.open(frame_path)).to(_DEVICE))
+            preprocessed = self.hybrid_model.preprocessor(
+                # Preprocess image
+                Image.open(frame_path)).unsqueeze(0).to(_DEVICE)
 
-        return behavior, tuple(frames)
+            # Extract features using CLIP
+            with torch.no_grad():
+                features = self.hybrid_model.clip_model.encode_image(
+                    preprocessed)
+
+            # Add features to list
+            frames.append(features.cpu().numpy())
+
+        return behavior, numpy.array(frames)
 
     def __len__(self):
         """Returns length of dataset"""
