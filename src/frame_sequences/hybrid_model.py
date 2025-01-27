@@ -101,7 +101,7 @@ class DisDriveDataset(Dataset):
                 # Preprocess image then add to list
                 Image.open(frame_path)).to(_DEVICE))
 
-        return torch.stack(tuple(frames)), behavior
+        return behavior, tuple(frames)
 
     def __len__(self):
         """Returns length of dataset"""
@@ -127,7 +127,7 @@ class DisDriveDataset(Dataset):
                 # For every grouped sequence in current behavior folder
                 for sequence_folder in os.listdir(behavior_path):
 
-                    print(f"Sequence: {behavior}, {sequence_folder}")
+                    # print(f"Sequence: {behavior}, {sequence_folder}")
 
                     # Folder of current behavior sequence
                     sequence_path = os.path.join(
