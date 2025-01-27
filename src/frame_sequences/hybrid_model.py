@@ -61,10 +61,10 @@ class HybridModel(nn.Module):
     def forward(self, tensor_sequence):
         """Processes input to the hybrid model to detect distracted driving"""
 
-        # lstm_output, (h_n, c_n) = self.lstm(
-        #     tensor_sequence)  # LSTM Forward Pass
-        # last_state = lstm_output[:, -1, :]
-        # output = self.fc(last_state)
+        lstm_output, (h_n, c_n) = self.lstm(
+            tensor_sequence)  # LSTM Forward Pass
+        last_state = lstm_output[:, -1, :]
+        output = self.fc(last_state)
 
         print("forwarded!")
 
@@ -106,8 +106,8 @@ class DisDriveDataset(Dataset):
                 features = self.hybrid_model.clip_model.encode_image(
                     preprocessed)
 
-            # Add features to list
-            frames.append(features.cpu().numpy())
+            # Remove first dimension then add features to list
+            frames.append(features.squeeze(0).cpu().numpy())
 
         return behavior, numpy.array(frames)
 

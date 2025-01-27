@@ -1,10 +1,11 @@
-"""Runner Software of the Distracted Driving Behavior Detector using CLIP and LSTM"""
+"""Trainer of the Distracted Driving Behavior Detector using CLIP and LSTM"""
 
 from hybrid_model import DisDriveDataset, HybridModel
 from torch.utils.data import DataLoader
 import torch
 
 TRAINING_DATASET_PATH = "./datasets/frame_sequences/train"
+_DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 
 # def custom_collate_fn(batch):
@@ -14,6 +15,7 @@ TRAINING_DATASET_PATH = "./datasets/frame_sequences/train"
 #     labels = torch.tensor([item[0] for item in batch])
 #     sequences = [item[1] for item in batch]  # Collect sequences of images
 #     return labels, sequences
+
 
 def __dataloader_debug(dataloader):
     """Function used to debug the dataloader"""
@@ -37,14 +39,30 @@ def __dataloader_debug(dataloader):
             print(type(sequence))
             print(len(sequence))
             print(sequence.shape)
+            print(type(sequence[0]))
             print(sequence[0].shape)
             break
 
         break
 
 
+def train_model(dataloader):
+    """Trains Hybrid Model using dataset"""
+    # b_batch: Batch of Behavior Labels
+    # s_batch: Batch of Sequences of frames
+    for b_batch, s_batch in dataloader:
+        s_batch = s_batch.clone().detach().to(
+            device=_DEVICE, dtype=torch.float32)  # Convert batch of sequence to float32
+
+        output = CLIP_LSTM(s_batch)
+
+        print(output)
+        break
+
+
 if __name__ == "__main__":
     CLIP_LSTM: HybridModel = HybridModel()
+    CLIP_LSTM.to(_DEVICE)  # Move Hybrid Model to device
 
     dataset = DisDriveDataset(TRAINING_DATASET_PATH, CLIP_LSTM)
 
@@ -53,4 +71,6 @@ if __name__ == "__main__":
     dataloader = DataLoader(dataset, batch_size=32,
                             shuffle=True)
 
-    __dataloader_debug(dataloader)
+    # __dataloader_debug(dataloader)
+
+    train_model(dataloader)
