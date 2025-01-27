@@ -87,10 +87,10 @@ class DisDriveDataset(Dataset):
         self.dataset_data = []  # [(behavior, [IMAGE_SEQUENCE])]
 
         # Process Dataset
-        self.process_dataset()
+        self.__process_dataset()
 
     def __getitem__(self, index):
-        """Returns Dataset Data at specific index; (Frames : List[Tensor of Image], Behavior : str)"""
+        """Returns Dataset Data at specific index"""
         (behavior,
          frame_paths) = self.dataset_data[index]  # Retrieve image and prompt
 
@@ -115,7 +115,7 @@ class DisDriveDataset(Dataset):
         """Returns length of dataset"""
         return len(self.dataset_data)
 
-    def process_dataset(self):
+    def __process_dataset(self):
         """Read dataset data"""
 
         print("Processing dataset...")

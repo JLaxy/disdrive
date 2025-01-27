@@ -15,37 +15,42 @@ TRAINING_DATASET_PATH = "./datasets/frame_sequences/train"
 #     sequences = [item[1] for item in batch]  # Collect sequences of images
 #     return labels, sequences
 
+def __dataloader_debug(dataloader):
+    """Function used to debug the dataloader"""
+
+    print("Debugging dataloader...\n")
+
+    for behavior_batch, sequence_batch in dataloader:
+        # Print behavior batch
+        print(f"behavior batch type: {type(behavior_batch)}")
+        print(f"behavior batch length: {len(behavior_batch)}")
+        print(f"behavior batch: {behavior_batch}")
+        print(f"behavior batch shape: {behavior_batch.shape}")
+
+        # Print sequence batch
+        print(f"\nsequence batch type: {type(sequence_batch)}")
+        print(f"sequence batch length: {len(sequence_batch)}")
+        # print(f"image shape: {image.shape}")
+
+        # Print single instance of sequence
+        for sequence in sequence_batch:
+            print(type(sequence))
+            print(len(sequence))
+            print(sequence.shape)
+            print(sequence[0].shape)
+            break
+
+        break
+
 
 if __name__ == "__main__":
     CLIP_LSTM: HybridModel = HybridModel()
 
     dataset = DisDriveDataset(TRAINING_DATASET_PATH, CLIP_LSTM)
 
-    print(f"sample: {dataset[28][0]}, \n{len(dataset[28][1])}")
+    print(f"sample: {dataset[28][0]}, {len(dataset[28][1])}")
 
     dataloader = DataLoader(dataset, batch_size=32,
                             shuffle=True)
 
-    for behavior, sequence in dataloader:
-        print(f"behavior type: {type(behavior)}")
-        print(f"behavior size: {len(behavior)}")
-        print(f"behavior: {behavior}")
-        print(f"behavior shape: {behavior.shape}")
-
-        print(f"sequence type: {type(sequence)}")
-        print(f"sequence length: {len(sequence)}")
-        # print(f"image shape: {image.shape}")
-
-        for seq in sequence:
-            print(type(seq))
-            print(len(seq))
-            print(seq[0].shape)
-            break
-
-        # output = CLIP_LSTM(image)
-
-        # print(output)
-        # print(type(output))
-        # print(output.shape)
-
-        break
+    __dataloader_debug(dataloader)
