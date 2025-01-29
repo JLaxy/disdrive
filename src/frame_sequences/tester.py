@@ -2,13 +2,13 @@
 
 from hybrid_model import DisDriveDataset, HybridModel
 from torch.utils.data import DataLoader
-from sklearn.metrics import classification_report, confusion_matrix, ConfusionMatrixDisplay
+from sklearn.metrics import classification_report, confusion_matrix, ConfusionMatrixDisplay, accuracy_score
 import matplotlib.pyplot as plt
 import torch
 
 _DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 _TESTING_DATASET_PATH = "./datasets/frame_sequences/test"
-_TRAINED_MODEL_SAVE_PATH = "./saved_models/best.pth"
+_TRAINED_MODEL_SAVE_PATH = "./saved_models/disdrive_hybrid_weights.pth"
 _BEHAVIOR_LABELS = ["Safe Driving",
                     "Texting Right",
                     "Texting Left",
@@ -48,6 +48,8 @@ def test_model(dataloader):
     # Display report
     print(classification_report(true_labels, pred_labels,
           target_names=_BEHAVIOR_LABELS))
+
+    print(f"Model Accuracy: {accuracy_score(true_labels, pred_labels)}")
 
     cm = confusion_matrix(true_labels, pred_labels)
 
