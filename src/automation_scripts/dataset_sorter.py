@@ -32,7 +32,7 @@ def organize_images_into_folders(source_folder, output_folder):
 
 # Example usage
 # Replace with the path to your folder
-source_folder = "F:\\Jownjown\\Education\\4th Year\\1st Sem\\Thesis 1\\Datasets\\Singapore AutoMan Distracted Driving\\SAM-DD(RGB)\\Testing\\Look Behind"
+source_folder = "F:\\Jownjown\\Education\\4th Year\\1st Sem\\Thesis 1\\Datasets\\Singapore AutoMan Distracted Driving\\SAM-DD(RGB)\\Evaluation\\Look Behind"
 # Replace with the path to your desired output folder
-output_folder = "./datasets/frame_sequences/train/i"
+output_folder = "./datasets/frame_sequences/test/i"
 organize_images_into_folders(source_folder, output_folder)

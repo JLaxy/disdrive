@@ -17,7 +17,7 @@ _NUM_OF_CLASSES = 9
 """LSTM Parameters"""
 _LSTM_INPUT_SIZE = 512
 _LSTM_HIDDEN_SIZE = 256
-_LSTM_NUM_LAYERS = 6
+_LSTM_NUM_LAYERS = 2
 
 _BEHAVIOR_LABEL = {
     "a": 0,  # Safe Driving
@@ -95,12 +95,13 @@ class HybridModel(nn.Module):
 class DisDriveDataset(Dataset):
     """The class of the dataset which will be used on the Hybrid Model"""
 
-    def __init__(self, dataset_directory: str, hybrid_model: HybridModel):
+    def __init__(self, dataset_directory: str, hybrid_model: HybridModel, to_get_features=True):
         """Initilizes dataset"""
         print("Creating dataset...")
 
         super().__init__()
 
+        self.to_get_features = to_get_features
         self.dataset_directory = dataset_directory  # Filepath of Dataset
         self.hybrid_model = hybrid_model  # CLIP and LSTM Hybrid Model
 
@@ -160,7 +161,7 @@ class DisDriveDataset(Dataset):
                     sequence_path = os.path.join(
                         behavior_path, sequence_folder)
 
-                    # frame_list = []  # List of frames in a sequence of behavior
+                    frame_list = []  # List of frames in a sequence of behavior
 
                     print(f"Processing {sequence_path}")
 
@@ -170,15 +171,17 @@ class DisDriveDataset(Dataset):
                         if frame == "features_temp":  # If iterated file is the features_temp folder, skip
                             continue
 
-                        # frame_path = os.path.join(sequence_path, frame)
-                        # # Add Frame to List
-                        # frame_list.append(frame_path)
+                        frame_path = os.path.join(sequence_path, frame)
+                        # Add Frame to List
+                        frame_list.append(frame_path)
 
                         save_path = sequence_path + "/features_temp"
 
-                        # # Preprocess then save to disk
-                        # self.hybrid_model.preprocess(
-                        #     save_path, frame_path, frame)
+                        # If to get features; saves features to disk if True
+                        if self.to_get_features:
+                            # Preprocess then save to disk
+                            self.hybrid_model.preprocess(
+                                save_path, frame_path, frame)
 
                     self.dataset_data.append(
                         (behavior, save_path))  # Add to dataset_data
