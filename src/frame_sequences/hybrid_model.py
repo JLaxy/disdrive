@@ -54,9 +54,12 @@ class HybridModel(nn.Module):
             hidden_size=_LSTM_HIDDEN_SIZE,
             num_layers=_LSTM_NUM_LAYERS,
             batch_first=True,
+            device=_DEVICE
         )
 
-        self.fc = nn.Linear(_LSTM_HIDDEN_SIZE, _NUM_OF_CLASSES)
+        self.fc = nn.Linear(_LSTM_HIDDEN_SIZE, _NUM_OF_CLASSES, device=_DEVICE)
+
+        print(f"Successfully Loaded! Using device: {_DEVICE}")
 
     def forward(self, tensor_sequence):
         """Processes input to the hybrid model to detect distracted driving"""
@@ -65,8 +68,6 @@ class HybridModel(nn.Module):
             tensor_sequence)  # LSTM Forward Pass
         last_state = lstm_output[:, -1, :]
         output = self.fc(last_state)
-
-        print("forwarded!")
 
         return output
 

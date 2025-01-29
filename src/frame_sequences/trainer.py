@@ -4,6 +4,7 @@ from hybrid_model import DisDriveDataset, HybridModel
 from torch.utils.data import DataLoader
 import torch.nn as nn
 import torch
+from tqdm import tqdm
 
 TRAINING_DATASET_PATH = "./datasets/frame_sequences/train"
 _DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
@@ -56,11 +57,16 @@ def train_model(dataloader):
     optimizer = torch.optim.Adam(CLIP_LSTM.parameters(), lr=_LEARNING_RATE)
 
     for epoch in range(_EPOCHS):  # Cycle each Epoch
+
+        # Initialize progress bar
+        progress_bar = tqdm(
+            dataloader, desc=f"Training Epoch {epoch+1}", leave=True)
+
         running_loss = 0.0  # Contains loss value of model during training
 
         # b_batch: Batch of Behavior Labels
         # s_batch: Batch of Sequences of frames
-        for b_batch, s_batch in dataloader:
+        for batch_idx, (b_batch, s_batch) in enumerate(progress_bar):
 
             b_batch = b_batch.to(_DEVICE)  # Transfer true labels to device
             s_batch = s_batch.clone().detach().to(
@@ -78,6 +84,8 @@ def train_model(dataloader):
             optimizer.step()
 
             running_loss += loss.item()
+
+            progress_bar.set_postfix(loss=loss.item())
 
         print(
             f"Epoch [{epoch+1}/{_EPOCHS}], Loss: {running_loss/len(dataloader)}")
