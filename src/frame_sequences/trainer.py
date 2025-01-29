@@ -4,12 +4,14 @@ from hybrid_model import DisDriveDataset, HybridModel
 from torch.utils.data import DataLoader
 import torch.nn as nn
 import torch
+import os
 from tqdm import tqdm
 
 TRAINING_DATASET_PATH = "./datasets/frame_sequences/train"
 _DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-_EPOCHS = 10  # Number of Epochs
-_LEARNING_RATE = 0.001  # Learning rate for optimizer in training
+_EPOCHS = 100  # Number of Epochs
+_LEARNING_RATE = 0.00001  # Learning rate for optimizer in training
+_TRAINED_MODEL_SAVE_PATH = "./saved_models"
 
 
 # def custom_collate_fn(batch):
@@ -52,6 +54,7 @@ def __dataloader_debug(dataloader):
 
 def train_model(dataloader):
     """Trains Hybrid Model using dataset"""
+    CLIP_LSTM.train()
 
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(CLIP_LSTM.parameters(), lr=_LEARNING_RATE)
@@ -91,6 +94,14 @@ def train_model(dataloader):
             f"Epoch [{epoch+1}/{_EPOCHS}], Loss: {running_loss/len(dataloader)}")
 
 
+def save_model_weights(file_name):
+    """Saves model weights to disk"""
+    torch.save(CLIP_LSTM.state_dict(), os.path.join(
+        _TRAINED_MODEL_SAVE_PATH, file_name))  # Save Model Weights
+
+    print(f"Model Saved to disk as '{file_name}'!")
+
+
 if __name__ == "__main__":
     CLIP_LSTM: HybridModel = HybridModel()
     CLIP_LSTM.to(_DEVICE)  # Move Hybrid Model to device
@@ -105,3 +116,5 @@ if __name__ == "__main__":
     # __dataloader_debug(dataloader)
 
     train_model(dataloader)
+
+    save_model_weights("disdrive_hybrid_weights.pth")

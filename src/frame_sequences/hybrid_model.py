@@ -71,6 +71,26 @@ class HybridModel(nn.Module):
 
         return output
 
+    def preprocess(self, save_directory: str, frame_path: str, frame_name: str):
+        """Preprocess image then save to disk"""
+
+        # If temp folder for feature does not exist
+        if not os.path.exists(save_directory):
+            # Create temp folder
+            os.makedirs(save_directory)
+
+        preprocessed = self.preprocessor(Image.open(frame_path)).unsqueeze(
+            0).to(_DEVICE)  # Open image, preprocess then save to device
+
+        with torch.no_grad():
+            features = self.clip_model.encode_image(
+                preprocessed)  # Extract features
+
+        # Edit dimension then convert to numpy
+        features = features.squeeze(0).cpu().numpy()
+        numpy.save(os.path.join(save_directory, frame_name.replace(".jpg", "")),
+                   features)  # Save feature to disk
+
 
 class DisDriveDataset(Dataset):
     """The class of the dataset which will be used on the Hybrid Model"""
@@ -92,25 +112,23 @@ class DisDriveDataset(Dataset):
 
     def __getitem__(self, index):
         """Returns Dataset Data at specific index"""
-        (behavior,
-         frame_paths) = self.dataset_data[index]  # Retrieve image and prompt
+        # Retrieve behavior and feature
+        (behavior, feature_path) = self.dataset_data[index]
 
-        frames = []  # List containing features of frames
+        features = []  # List containing features of frames
 
-        for frame_path in frame_paths:  # For every frame in list of paths
-            preprocessed = self.hybrid_model.preprocessor(
-                # Preprocess image
-                Image.open(frame_path)).unsqueeze(0).to(_DEVICE)
+        # For every feature in feature_path path
+        for feature_file in os.listdir(feature_path):
+            # Create path of feature
+            path = os.path.join(
+                feature_path, feature_file)
 
-            # Extract features using CLIP
-            with torch.no_grad():
-                features = self.hybrid_model.clip_model.encode_image(
-                    preprocessed)
+            # Load feature from disk
+            feature = numpy.load(path)
+            # Add to list
+            features.append(feature)
 
-            # Remove first dimension then add features to list
-            frames.append(features.squeeze(0).cpu().numpy())
-
-        return behavior, numpy.array(frames)
+        return behavior, numpy.array(features)
 
     def __len__(self):
         """Returns length of dataset"""
@@ -141,15 +159,28 @@ class DisDriveDataset(Dataset):
                     # Folder of current behavior sequence
                     sequence_path = os.path.join(
                         behavior_path, sequence_folder)
-                    frame_list = []  # List of frames in a sequence of behavior
+
+                    # frame_list = []  # List of frames in a sequence of behavior
+
+                    print(f"Processing {sequence_path}")
 
                     # For every Frame in Sequence Folder
                     for frame in os.listdir(sequence_path):
-                        frame_path = os.path.join(sequence_path, frame)
-                        # Add Frame to List
-                        frame_list.append(frame_path)
+
+                        if frame == "features_temp":  # If iterated file is the features_temp folder, skip
+                            continue
+
+                        # frame_path = os.path.join(sequence_path, frame)
+                        # # Add Frame to List
+                        # frame_list.append(frame_path)
+
+                        save_path = sequence_path + "/features_temp"
+
+                        # # Preprocess then save to disk
+                        # self.hybrid_model.preprocess(
+                        #     save_path, frame_path, frame)
 
                     self.dataset_data.append(
-                        (behavior, frame_list))  # Add to dataset_data
+                        (behavior, save_path))  # Add to dataset_data
 
         print(f"Total number of processed sequences: {len(self.dataset_data)}")

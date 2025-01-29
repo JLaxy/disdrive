@@ -178,7 +178,9 @@ testing_dataset/
 training_dataset/
 datasets/frame_by_frame/test
 datasets/frame_by_frame/train
+datasets/frame_by_frame/features_temp
 datasets/frame_sequences/test
 datasets/frame_sequences/train
+datasets/frame_sequences/features_temp
 # Models
 *.pth
