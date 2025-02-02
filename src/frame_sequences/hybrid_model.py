@@ -12,7 +12,7 @@ _MODEL = "ViT-B/16"  # 224x224
 # Automatically changes to GPU if available
 _DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 """Number of Distracted Driving Behaviors"""
-_NUM_OF_CLASSES = 9
+_NUM_OF_CLASSES = 8
 
 """LSTM Parameters"""
 _LSTM_INPUT_SIZE = 512
@@ -25,10 +25,9 @@ _BEHAVIOR_LABEL = {
     "c": 2,  # Texting Left
     "d": 3,  # Talking using Phone Right
     "e": 4,  # Talking using Phone Left
-    "f": 5,  # Operating Radio
-    "g": 6,  # Drinking
-    "h": 7,  # Head Down
-    "i": 8   # Look Behind
+    "f": 5,  # Drinking
+    "g": 6,  # Head Down
+    "h": 7,  # Look Behind
 }
 
 

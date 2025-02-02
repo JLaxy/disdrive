@@ -9,8 +9,8 @@ from tqdm import tqdm
 
 TRAINING_DATASET_PATH = "./datasets/frame_sequences/train"
 _DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-_EPOCHS = 15  # Number of Epochs
-_LEARNING_RATE = 0.0001  # Learning rate for optimizer in training
+_EPOCHS = 17  # Number of Epochs
+_LEARNING_RATE = 0.00001  # Learning rate for optimizer in training
 _TRAINED_MODEL_SAVE_PATH = "./saved_models"
 _TO_PREPROCESS_DATA = False
 

@@ -15,7 +15,6 @@ _BEHAVIOR_LABELS = ["Safe Driving",
                     "Texting Left",
                     "Talking using Phone Right",
                     "Talking using Phone Left",
-                    "Operating Radio",
                     "Drinking",
                     "Head Down",
                     "Look Behind"]

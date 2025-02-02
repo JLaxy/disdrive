@@ -15,8 +15,8 @@ _BEHAVIORS = {
 }
 
 # File path of each tester
-_TESTERS_PATH = "F:\\Jownjown\\Education\\4th Year\\1st Sem\\Thesis 1\\Datasets\\Singapore AutoMan Distracted Driving\\SAM-DD(RGB)\\Evaluation\\Raw"
-_FOLDER_SORT_PATH = "F:\\Jownjown\\Education\\4th Year\\1st Sem\\Thesis 1\\Datasets\\Singapore AutoMan Distracted Driving\\SAM-DD(RGB)\\Evaluation"
+_TESTERS_PATH = "F:\\Jownjown\\Education\\4th Year\\1st Sem\\Thesis 1\\Datasets\\Singapore AutoMan Distracted Driving\\SAM-DD(RGB)\\Testing\\Raw"
+_FOLDER_SORT_PATH = "F:\\Jownjown\\Education\\4th Year\\1st Sem\\Thesis 1\\Datasets\\Singapore AutoMan Distracted Driving\\SAM-DD(RGB)\\Testing\\Front View"
 
 
 def sort():
