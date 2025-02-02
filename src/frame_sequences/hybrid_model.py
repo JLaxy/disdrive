@@ -66,6 +66,7 @@ class HybridModel(nn.Module):
 
         lstm_output, (h_n, c_n) = self.lstm(
             tensor_sequence)  # LSTM Forward Pass
+
         last_state = lstm_output[:, -1, :]
         output = self.fc(last_state)
 

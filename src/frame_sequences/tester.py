@@ -9,6 +9,7 @@ import torch
 _DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 _TESTING_DATASET_PATH = "./datasets/frame_sequences/test"
 _TRAINED_MODEL_SAVE_PATH = "./saved_models/disdrive_hybrid_weights.pth"
+_TO_PREPROCESS_DATA = False
 _BEHAVIOR_LABELS = ["Safe Driving",
                     "Texting Right",
                     "Texting Left",
@@ -72,7 +73,8 @@ if __name__ == "__main__":
     CLIP_LSTM.to(_DEVICE)
 
     # Create Dataset
-    dataset = DisDriveDataset(_TESTING_DATASET_PATH, CLIP_LSTM, False)
+    dataset = DisDriveDataset(_TESTING_DATASET_PATH,
+                              CLIP_LSTM, _TO_PREPROCESS_DATA)
     # Initialize Dataloader
     dataloader = DataLoader(dataset, batch_size=32,
                             shuffle=False, pin_memory=True)

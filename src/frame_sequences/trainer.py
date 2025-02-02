@@ -9,9 +9,10 @@ from tqdm import tqdm
 
 TRAINING_DATASET_PATH = "./datasets/frame_sequences/train"
 _DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-_EPOCHS = 20  # Number of Epochs
-_LEARNING_RATE = 0.001  # Learning rate for optimizer in training
+_EPOCHS = 15  # Number of Epochs
+_LEARNING_RATE = 0.0001  # Learning rate for optimizer in training
 _TRAINED_MODEL_SAVE_PATH = "./saved_models"
+_TO_PREPROCESS_DATA = False
 
 
 # def custom_collate_fn(batch):
@@ -106,7 +107,8 @@ if __name__ == "__main__":
     CLIP_LSTM: HybridModel = HybridModel()
     CLIP_LSTM.to(_DEVICE)  # Move Hybrid Model to device
 
-    dataset = DisDriveDataset(TRAINING_DATASET_PATH, CLIP_LSTM, False)
+    dataset = DisDriveDataset(TRAINING_DATASET_PATH,
+                              CLIP_LSTM, _TO_PREPROCESS_DATA)
 
     print(f"sample: {dataset[28][0]}, {len(dataset[28][1])}")
 
