@@ -73,18 +73,19 @@ if __name__ == "__main__":
         frame_buffer.append(feature)  # Add to frame buffer
 
         if len(frame_buffer) == 20:  # If collected 20 frames
-            # Convert to list then to Tensor
-            sequence_tensor = torch.stack(list(frame_buffer))
+            with torch.no_grad():
+                # Convert to list to Tensor
+                sequence_tensor = torch.stack(list(frame_buffer))
+                # Add extra dimension for processing
+                sequence_tensor = sequence_tensor.unsqueeze(0)
 
-            sequence_tensor = sequence_tensor.unsqueeze(0)
+                output = model(sequence_tensor)  # Make prediction
+                output = torch.argmax(output, dim=1).item()  # Get prediction
 
-            output = model(sequence_tensor)  # Make prediction
-            output = torch.argmax(output, dim=1).item()
-
-            cv2.putText(
-                frame, _BEHAVIOR_LABEL[output], (50, 50),
-                cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2, cv2.LINE_AA
-            )
+                cv2.putText(
+                    frame, _BEHAVIOR_LABEL[output], (50, 50),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2, cv2.LINE_AA
+                )
 
         cv2.imshow("RGB", frame)
 

@@ -61,7 +61,7 @@ class HybridModel(nn.Module):
         print(f"Successfully Loaded! Using device: {_DEVICE}")
 
     def forward(self, tensor_sequence):
-        """Processes input to the hybrid model to detect distracted driving"""
+        """Processes input to the hybrid model to detect distracted driving; Size must be (BATCH, SEQUENCE_LENGTH, FEATURE_DIM)"""
 
         lstm_output, (h_n, c_n) = self.lstm(
             tensor_sequence)  # LSTM Forward Pass
