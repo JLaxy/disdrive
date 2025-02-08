@@ -9,6 +9,16 @@ from PIL import Image
 
 _TRAINED_MODEL_SAVE_PATH = "./saved_models/BEST_3zero.pth"
 _DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+_BEHAVIOR_LABEL = {
+    0: "Safe Driving",  # Safe Driving
+    1: "Texting Right",  # Texting Right
+    2: "Texting Left",  # Texting Left
+    3: "Talking using Phone Right",  # Talking using Phone Right
+    4: "Talking using Phone Left",  # Talking using Phone Left
+    5: "Drinking",  # Drinking
+    6: "Head Down",  # Head Down
+    7: "Look Behind",  # Look Behind
+}
 
 
 def __load_model() -> HybridModel:
@@ -41,7 +51,7 @@ def __extract_features(frame):
 
     with torch.no_grad():  # Extract features using CLIP
         features = model.clip_model.encode_image(
-            processed_frame).to(torch.float32)
+            processed_frame).squeeze(0).to(torch.float32)
 
     return features  # Return feature
 
@@ -65,10 +75,16 @@ if __name__ == "__main__":
         if len(frame_buffer) == 20:  # If collected 20 frames
             # Convert to list then to Tensor
             sequence_tensor = torch.stack(list(frame_buffer))
-            print(f"Test: {sequence_tensor.shape}")
+
+            sequence_tensor = sequence_tensor.unsqueeze(0)
 
             output = model(sequence_tensor)  # Make prediction
-            print(output)
+            output = torch.argmax(output, dim=1).item()
+
+            cv2.putText(
+                frame, _BEHAVIOR_LABEL[output], (50, 50),
+                cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2, cv2.LINE_AA
+            )
 
         cv2.imshow("RGB", frame)
 
