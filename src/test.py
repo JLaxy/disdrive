@@ -7,7 +7,7 @@ from frame_sequences.hybrid_model import HybridModel
 from collections import deque
 from PIL import Image
 
-_TRAINED_MODEL_SAVE_PATH = "./saved_models/BEST_3zero.pth"
+_TRAINED_MODEL_SAVE_PATH = "./saved_models/disdrive_hybrid_weights.pth"
 _DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 _BEHAVIOR_LABEL = {
     0: "Safe Driving",  # Safe Driving
