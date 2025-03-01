@@ -1,11 +1,23 @@
 import torch
-from torch.nn.utils.rnn import pad_sequence
+from fvcore.nn import FlopCountAnalysis
+from frame_sequences.hybrid_model import HybridModel
 
-# Example: List of tensor sequences of varying lengths
-sequences = [torch.rand(10, 512), torch.rand(25, 512), torch.rand(5, 512)]
+_TRAINED_MODEL_SAVE_PATH = "./saved_models/disdrive_hybrid_weights.pth"
+_DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
-# Pad sequences
-padded_sequences = pad_sequence(sequences, batch_first=True)
-# Should be (3, 25, 512)
-print("Padded sequences shape:", padded_sequences.shape)
-print("test:", torch.stack(sequences))
+# Load your trained model
+model: HybridModel = HybridModel()  # Replace with your actual model instance
+model.load_state_dict(torch.load(_TRAINED_MODEL_SAVE_PATH))
+model.to(_DEVICE)
+model.eval()  # Set to evaluation mode
+
+# Dummy input: Replace with actual input shape (batch_size, sequence_length, feature_dim)
+# Example input for LSTM with 20 frames
+dummy_input = torch.randn(1, 20, 512).to(_DEVICE)
+
+# Compute FLOPS
+flops = FlopCountAnalysis(model, dummy_input)
+
+# Print results
+print(f"Total FLOPS: {flops.total()} FLOPS")
+print(f"Total FLOPS in GFLOPS: {flops.total() / 1e9} GFLOPS")
