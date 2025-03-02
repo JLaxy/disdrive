@@ -4,12 +4,14 @@ import asyncio
 import websockets
 import base64
 import json
+import subprocess
 from collections import deque
 from frame_sequences.hybrid_model import HybridModel
 from PIL import Image
 
 # Model settings
-_TRAINED_MODEL_SAVE_PATH = "../saved_models/disdrive_hybrid_weights.pth"
+_TRAINED_MODEL_SAVE_PATH = "./saved_models/disdrive_hybrid_weights.pth"
+_WEBSERVER_PATH = "./web_server"
 _DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 _BEHAVIOR_LABEL = {
     0: "Safe Driving",
@@ -92,12 +94,21 @@ async def video_stream(websocket):
 
         await asyncio.sleep(0.05)  # 50ms delay for smooth streaming
 
-# Define WebSocket server
+# Start WebSocket server and launch React
 
 
 async def main():
     async with websockets.serve(video_stream, "0.0.0.0", 8765):
-        print("WebSocket server started on ws://0.0.0.0:8765")
+        print("✅ WebSocket server started on ws://0.0.0.0:8765")
+
+        # 🔥 Start the React frontend after backend is ready
+        try:
+            print("🚀 Starting React frontend...")
+            subprocess.Popen(["npm", "run", "dev"],
+                             cwd=_WEBSERVER_PATH, shell=True)
+        except Exception as e:
+            print(f"⚠️ Failed to start React frontend: {e}")
+
         await asyncio.Future()  # Keep the server running
 
 if __name__ == "__main__":
