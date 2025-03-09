@@ -10,8 +10,8 @@ from frame_sequences.hybrid_model_original import HybridModel
 from PIL import Image
 
 # Model settings
-_TRAINED_MODEL_SAVE_PATH = "./saved_models/disdrive_model.pth"
-_WEBSERVER_PATH = "./web_server"
+_TRAINED_MODEL_SAVE_PATH = "./saved_models/disdrive_hybrid_weights.pth"
+_WEBSERVER_PATH = "./web_server"  # Path to React frontend
 _DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 _BEHAVIOR_LABEL = {
     0: "Safe Driving",
@@ -25,9 +25,9 @@ _BEHAVIOR_LABEL = {
 }
 
 # Initialize webcam
-cap = cv2.VideoCapture(1)
+cap = cv2.VideoCapture(0)
 if not cap.isOpened():
-    print("Unable to open camera!")
+    print("❌ Unable to open camera!")
     exit()
 
 # Load and initialize the model
@@ -62,10 +62,13 @@ def extract_features(frame):
 
 
 async def video_stream(websocket):
+    """WebSocket server handling video streaming"""
+    print(f"✅ Client connected: {websocket.remote_address}")
+
     while True:
         ret, frame = cap.read()
         if not ret:
-            print("Failed to capture frame!")
+            print("❌ Failed to capture frame!")
             break
 
         # Extract features
@@ -94,25 +97,35 @@ async def video_stream(websocket):
 
         await asyncio.sleep(0.05)  # 50ms delay for smooth streaming
 
-# Start WebSocket server and launch React
 
-
-async def main():
+async def start_websocket():
+    """Start the WebSocket server"""
     async with websockets.serve(video_stream, "0.0.0.0", 8765):
         print("✅ WebSocket server started on ws://0.0.0.0:8765")
+        await asyncio.Future()  # Keep running indefinitely
+        print("1")
 
-        # 🔥 Start the React frontend after backend is ready
-        try:
-            print("🚀 Starting React frontend...")
-            subprocess.Popen(["npm", "run", "dev"],
-                             cwd=_WEBSERVER_PATH, shell=True)
-        except Exception as e:
-            print(f"⚠️ Failed to start React frontend: {e}")
+    print("2")
 
-        await asyncio.Future()  # Keep the server running
+
+def start_frontend():
+    """Start the React frontend (Optional)"""
+    try:
+        print("🚀 Starting React frontend...")
+        subprocess.Popen(["npm", "run", "dev"],
+                         cwd=_WEBSERVER_PATH, shell=True)
+    except Exception as e:
+        print(f"⚠️ Failed to start React frontend: {e}")
+
 
 if __name__ == "__main__":
-    loop = asyncio.new_event_loop()  # Create a new event loop
-    asyncio.set_event_loop(loop)  # Set it as the current loop
-    loop.run_until_complete(main())  # Run the WebSocket server
-    loop.run_forever()  # Keep the loop running
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
+    # Start backend first
+    loop.run_until_complete(start_websocket())
+
+    # Uncomment the line below if you want to auto-start React as well
+    # start_frontend()
+
+    loop.run_forever()  # Keep backend running
