@@ -1,6 +1,6 @@
 import torch
 from fvcore.nn import FlopCountAnalysis
-from frame_sequences.hybrid_model import HybridModel
+from frame_sequences.hybrid_model_original import HybridModel
 
 _TRAINED_MODEL_SAVE_PATH = "./saved_models/disdrive_hybrid_weights.pth"
 _DEVICE = "cuda" if torch.cuda.is_available() else "cpu"

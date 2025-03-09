@@ -15,7 +15,7 @@ _DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 _NUM_OF_CLASSES = 8
 
 """LSTM Parameters"""
-_LSTM_INPUT_SIZE = 256
+_LSTM_INPUT_SIZE = 512
 _LSTM_HIDDEN_SIZE = 256
 _LSTM_NUM_LAYERS = 2
 
@@ -47,20 +47,12 @@ class HybridModel(nn.Module):
 
         print("Loading LSTM model...")
 
-        # Adapter for CLIP model
-        self.adapter = nn.Sequential(
-            nn.Linear(512, 256),
-            nn.ReLU(),
-            nn.Dropout(0.3)
-        )
-
         # Initalizing LSTM Neural Network
         self.lstm: torch.nn.LSTM = torch.nn.LSTM(
             input_size=_LSTM_INPUT_SIZE,
             hidden_size=_LSTM_HIDDEN_SIZE,
             num_layers=_LSTM_NUM_LAYERS,
             batch_first=True,
-            dropout=0.3,
             device=_DEVICE
         )
 
@@ -71,11 +63,8 @@ class HybridModel(nn.Module):
     def forward(self, tensor_sequence):
         """Processes input to the hybrid model to detect distracted driving; Size must be (BATCH, SEQUENCE_LENGTH, FEATURE_DIM)"""
 
-        adapted_sequence = self.adapter(
-            tensor_sequence)  # Pass through adapter
-
         lstm_output, (h_n, c_n) = self.lstm(
-            adapted_sequence)  # LSTM Forward Pass
+            tensor_sequence)  # LSTM Forward Pass
 
         last_state = lstm_output[:, -1, :]
         output = self.fc(last_state)

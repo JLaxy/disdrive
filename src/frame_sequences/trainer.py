@@ -9,8 +9,9 @@ from tqdm import tqdm
 
 TRAINING_DATASET_PATH = "./datasets/frame_sequences/train"
 _DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-_EPOCHS = 10  # Number of Epochs
+_EPOCHS = 15  # Number of Epochs
 _LEARNING_RATE = 0.0001  # Learning rate for optimizer in training
+_WEIGHT_DECAY = 0.00001  # Weight decay for optimizer in training
 _TRAINED_MODEL_SAVE_PATH = "./saved_models"
 _TO_PREPROCESS_DATA = False
 
@@ -58,7 +59,8 @@ def train_model(dataloader):
     CLIP_LSTM.train()
 
     criterion = nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(CLIP_LSTM.parameters(), lr=_LEARNING_RATE)
+    optimizer = torch.optim.Adam(CLIP_LSTM.parameters(
+    ), lr=_LEARNING_RATE, weight_decay=_WEIGHT_DECAY)
 
     for epoch in range(_EPOCHS):  # Cycle each Epoch
 
@@ -67,6 +69,8 @@ def train_model(dataloader):
             dataloader, desc=f"Training Epoch {epoch+1}", leave=True)
 
         running_loss = 0.0  # Contains loss value of model during training
+        correct_predictions = 0  # Number of correct predictions
+        total_samples = 0  # Total number of samples
 
         # b_batch: Batch of Behavior Labels
         # s_batch: Batch of Sequences of frames
@@ -89,10 +93,18 @@ def train_model(dataloader):
 
             running_loss += loss.item()
 
+            # Computing accuracy
+            predicted = torch.argmax(output, dim=1)  # Get predicted behavior
+            # Add if correct
+            correct_predictions += (predicted == b_batch).sum().item()
+            total_samples += b_batch.size(0)
+
             progress_bar.set_postfix(loss=loss.item())
 
+        epoch_accuracy = (correct_predictions / total_samples) * 100
+
         print(
-            f"Epoch [{epoch+1}/{_EPOCHS}], Loss: {running_loss/len(dataloader)}")
+            f"Epoch [{epoch+1}/{_EPOCHS}], Loss: {running_loss/len(dataloader)}, Accuracy: {epoch_accuracy:.2f}%")
 
 
 def save_model_weights(file_name):
@@ -119,4 +131,4 @@ if __name__ == "__main__":
 
     train_model(dataloader)
 
-    save_model_weights("disdrive_hybrid_weights.pth")
+    save_model_weights("disdrive_model.pth")
