@@ -4,9 +4,10 @@ import torch.nn as nn
 import os
 from torch.utils.data import Dataset
 from PIL import Image
+import numpy
 
 """Hybrid Model Settings"""
-_MODEL = "ViT-B/16"  # 224x224
+_MODEL = "ViT-G/14"  # 224x224
 # Automatically changes to GPU if available
 _DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -14,30 +15,29 @@ _DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 _LSTM_INPUT_SIZE = 512
 _LSTM_HIDDEN_SIZE = 512
 _LSTM_NUM_LAYERS = 2
-_LSTM_DROPOUT = 0.2
+_LSTM_DROPOUT = 0.3
+
+_NUM_OF_CLASSES = 6
 
 # Prompts for distracted driving behaviors
 _DRIVING_CATEGORIES_PROMPTS = [
-    "a photo of a person driving safely with both hands on the steering wheel",  # c0
-    "a photo of a person texting using their mobile phone while driving",        # c1
-    "a photo of a person talking on the phone while driving",                    # c2
-    "a photo of a person operating the car radio while driving",                 # c3
-    "a photo of a person drinking while driving",                                # c4
-    "a photo of a person reaching for an object behind them while driving",      # c5
-    "a photo of a person with their head down while driving"                     # c6
+    "a photo of a person driving safely with both hands on the steering wheel",
+    "a photo of a person texting using their mobile phone while driving",
+    "a photo of a person talking on the phone while driving",
+    "a photo of a person drinking while driving",
+    "a photo of a person with their head down while driving",                              # c4
+    "a photo of a person looking behind while driving",
 ]
 
-# Descriptions for each category
-_CATEGORY_PROMPTS = { # 7 Classes
-    "c0": _DRIVING_CATEGORIES_PROMPTS[0],
-    "c1": _DRIVING_CATEGORIES_PROMPTS[1],
-    "c1.1": _DRIVING_CATEGORIES_PROMPTS[1],
-    "c2": _DRIVING_CATEGORIES_PROMPTS[2],
-    "c2.1": _DRIVING_CATEGORIES_PROMPTS[2],
-    "c3": _DRIVING_CATEGORIES_PROMPTS[3],
-    "c4": _DRIVING_CATEGORIES_PROMPTS[4],
-    "c5": _DRIVING_CATEGORIES_PROMPTS[5],
-    "c6": _DRIVING_CATEGORIES_PROMPTS[6]
+_BEHAVIOR_LABEL = {
+    "a": 0,  # Safe Driving
+    "b": 1,  # Texting Right
+    "c": 2,  # Texting Left
+    "d": 3,  # Talking using Phone Right
+    "e": 4,  # Talking using Phone Left
+    "f": 5,  # Drinking
+    "g": 6,  # Head Down
+    "h": 7,  # Look Behind
 }
 
 
@@ -70,63 +70,148 @@ class HybridModel(nn.Module):
             dropout=_LSTM_DROPOUT
         )
 
-    def forward(self, frames: Image, prompts: str):
-        """Processes input to the hybrid model to detect distracted driving"""
-        clip_result = self.model(frames, prompts)
+        self.fc = nn.Linear(_LSTM_HIDDEN_SIZE, _NUM_OF_CLASSES, device=_DEVICE)
 
-        print("forwarded!")
-        # TODO: process by LSTM
-        return clip_result
+        print("Precomputing prompts...")
+        self.precompute_prompts()
+
+    def precompute_prompts(self):
+        """Precomputes prompts for LSTM model"""
+        # Tokenizes prompts for LSTM model
+        self.prompts = clip.tokenize(_DRIVING_CATEGORIES_PROMPTS).to(_DEVICE)
+
+        with torch.no_grad():
+            # Encodes prompts
+            self.prompts = self.clip_model.encode_text(self.prompts)
+            # Normalize
+            self.prompts /= self.prompts.norm(dim=-1, keepdim=True)
+
+    def preprocess(self, save_directory: str, frame_path: str, frame_name: str):
+        """Preprocess image, compute logits then save to disk"""
+
+        # If temp folder for feature does not exist
+        if not os.path.exists(save_directory):
+            # Create temp folder
+            os.makedirs(save_directory)
+
+        preprocessed = self.preprocessor(Image.open(frame_path)).unsqueeze(
+            0).to(_DEVICE)  # Open image, preprocess then save to device
+
+        with torch.no_grad():
+            features = self.clip_model.encode_image(
+                preprocessed)  # Extract features
+            # Normalize features using L2 norm
+            features = features / features.norm(dim=-1, keepdim=True)
+            # Get logits, edit dimension then convert into numpy
+            logits = (100.0 * features @
+                      self.prompts.T).squeeze(0).cpu().numpy()
+
+        numpy.save(os.path.join(save_directory, frame_name.replace(".jpg", "")),
+                   logits)  # Save logits to disk
+
+    def forward(self, prediction_sequence):
+        """Processes input to the hybrid model to detect distracted driving"""
+        lstm_output, (h_n, c_n) = self.lstm(
+            prediction_sequence)  # LSTM Forward Pass
+
+        last_state = lstm_output[:, -1, :]
+        output = self.fc(last_state)
+
+        return output
 
 
 class DisDriveDataset(Dataset):
     """The class of the dataset which will be used on the Hybrid Model"""
 
-    def __init__(self, dataset_directory: str, hybrid_model: HybridModel):
+    def __init__(self, dataset_directory: str, hybrid_model: HybridModel, to_get_features=True):
         """Initilizes dataset"""
+        print("Creating dataset...")
+
         super().__init__()
 
+        self.to_get_features = to_get_features
         self.dataset_directory = dataset_directory  # Filepath of Dataset
         self.hybrid_model = hybrid_model  # CLIP and LSTM Hybrid Model
 
         # List of Image-Text Pairs in Tensor form
-        self.dataset_data = []
+        self.dataset_data = []  # [(behavior, [PREDICTION_LOGITS])]
 
         # Process Dataset
-        self.process_dataset()
+        self.__process_dataset()
 
     def __getitem__(self, index):
         """Returns Dataset Data at specific index"""
-        (image, prompt) = self.dataset_data[index]  # Retrieve image and prompt
+        # Retrieve behavior and logits
+        (behavior, logits_path) = self.dataset_data[index]
 
-        # Preprocess then put to device
-        image = self.hybrid_model.preprocessor(image).to(_DEVICE)
-        prompt = clip.tokenize(prompt).squeeze(0).to(_DEVICE)
+        logits = []  # List containing logit of frames
 
-        return image, prompt
+        # For every logit in logit_path path
+        for logits_file in os.listdir(logits_path):
+            # Create path of logit
+            path = os.path.join(
+                logits_path, logits_file)
+
+            # Load logit from disk
+            logit = numpy.load(path)
+            # Add to list
+            logits.append(logit)
+
+        return behavior, numpy.array(logits)
 
     def __len__(self):
         """Returns length of dataset"""
         return len(self.dataset_data)
 
-    def process_dataset(self):
-        """Creates dataset using supplied dataset directory"""
+    def __process_dataset(self):
+        """Read dataset data"""
 
-        print("Building Dataset...")
-        # For every Folder
-        for category in os.listdir(self.dataset_directory):
-            print(f"Category: {category}")
-            # Append OS path to folder name
-            category_path = os.path.join(self.dataset_directory, category)
+        print("Processing dataset...")
 
-            # If file is a folder directory
-            if os.path.isdir(category_path):
-                # Get equivalent prompt
-                prompt = _CATEGORY_PROMPTS.get(category)
-                # For each image in folder
-                for image in os.listdir(category_path):
-                    # Get concatenated image path
-                    path = os.path.join(category_path, image)
+        # Iterate through each behavior
+        for behavior_folder in os.listdir(self.dataset_directory):
 
-                    # Add Image and Prompt pair to dataset data
-                    self.dataset_data.append((Image.open(path), prompt))
+            behavior = _BEHAVIOR_LABEL.get(
+                behavior_folder)  # Get type of behavior
+
+            # Sets current behavior folder
+            behavior_path = os.path.join(
+                self.dataset_directory, behavior_folder)
+
+            # If current path is a directory; contains folders
+            if os.path.isdir(behavior_path):
+                # For every grouped sequence in current behavior folder
+                for sequence_folder in os.listdir(behavior_path):
+
+                    # print(f"Sequence: {behavior}, {sequence_folder}")
+
+                    # Folder of current behavior sequence
+                    sequence_path = os.path.join(
+                        behavior_path, sequence_folder)
+
+                    frame_list = []  # List of frames in a sequence of behavior
+
+                    print(f"Processing {sequence_path}")
+
+                    # For every Frame in Sequence Folder
+                    for frame in os.listdir(sequence_path):
+
+                        if frame == "logits_temp":  # If iterated file is the features_temp folder, skip
+                            continue
+
+                        frame_path = os.path.join(sequence_path, frame)
+                        # Add Frame to List
+                        frame_list.append(frame_path)
+
+                        save_path = sequence_path + "/logits_temp"
+
+                        # If to get features; saves features to disk if True
+                        if self.to_get_features:
+                            # Preprocess then save to disk
+                            self.hybrid_model.preprocess(
+                                save_path, frame_path, frame)
+
+                    self.dataset_data.append(
+                        (behavior, save_path))  # Add to dataset_data
+
+        print(f"Total number of processed sequences: {len(self.dataset_data)}")

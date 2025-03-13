@@ -97,6 +97,9 @@ class HybridModel(nn.Module):
             features = self.clip_model.encode_image(
                 preprocessed)  # Extract features
 
+        # Normalize features using L2 norm
+        features /= features.norm(dim=-1, keepdim=True)
+
         # Edit dimension then convert to numpy
         features = features.squeeze(0).cpu().numpy()
         numpy.save(os.path.join(save_directory, frame_name.replace(".jpg", "")),
