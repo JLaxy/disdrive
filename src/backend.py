@@ -25,7 +25,7 @@ _BEHAVIOR_LABEL = {
 }
 
 # Initialize webcam
-cap = cv2.VideoCapture(1)
+cap = cv2.VideoCapture(0)
 if not cap.isOpened():
     print("Unable to open camera!")
     exit()

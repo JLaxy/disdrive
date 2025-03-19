@@ -53,7 +53,6 @@ def __dataloader_debug(dataloader):
 
         break
 
-
 def train_model(dataloader):
     """Trains Hybrid Model using dataset"""
     CLIP_LSTM.train()
@@ -106,14 +105,12 @@ def train_model(dataloader):
         print(
             f"Epoch [{epoch+1}/{_EPOCHS}], Loss: {running_loss/len(dataloader)}, Accuracy: {epoch_accuracy:.2f}%")
 
-
 def save_model_weights(file_name):
     """Saves model weights to disk"""
     torch.save(CLIP_LSTM.state_dict(), os.path.join(
         _TRAINED_MODEL_SAVE_PATH, file_name))  # Save Model Weights
 
     print(f"Model Saved to disk as '{file_name}'!")
-
 
 if __name__ == "__main__":
     CLIP_LSTM: HybridModel = HybridModel()

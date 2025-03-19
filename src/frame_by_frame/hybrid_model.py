@@ -7,9 +7,9 @@ from PIL import Image
 import numpy
 
 """Hybrid Model Settings"""
-_MODEL = "ViT-G/14"  # 224x224
+_MODEL = "ViT-B/16"  # 224x224
 # Automatically changes to GPU if available
-_DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+_DEVICE = "cpu" if torch.cuda.is_available() else "cpu"
 
 """LSTM Parameters"""
 _LSTM_INPUT_SIZE = 512
