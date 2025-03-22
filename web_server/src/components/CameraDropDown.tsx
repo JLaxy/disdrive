@@ -21,9 +21,8 @@ const CameraDropDown: React.FC = () => {
       </Dropdown.Toggle>
 
       <Dropdown.Menu>
-        <Dropdown.Item eventKey="Camera 1">Camera 1</Dropdown.Item>
-        <Dropdown.Item eventKey="Camera 2">Camera 2</Dropdown.Item>
-        <Dropdown.Item eventKey="Camera 3">Camera 3</Dropdown.Item>
+        <Dropdown.Item eventKey="Front View">Front View</Dropdown.Item>
+        <Dropdown.Item eventKey="Side View">Side View</Dropdown.Item>
       </Dropdown.Menu>
     </Dropdown>
   );

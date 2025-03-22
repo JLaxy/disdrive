@@ -16,9 +16,9 @@ function GetButton(btnVariant: string, btnText: string, btnNavigate: string) {
 
 function GetButtons() {
   return (
-    <>
+    <div className="d-flex flex-column gap-3 w-100 justify-content-center align-items-center">
       {GetButton("primary", "View Session", "/session")}
-      {GetButton("primary", "View Logs", "/viewlogs")}
+      {GetButton("primary", "View Logs", "/logs")}
       {GetButton("primary", "Settings", "/settings")}
       <Button
         variant="danger"
@@ -27,13 +27,13 @@ function GetButtons() {
       >
         Shutdown
       </Button>
-    </>
+    </div>
   );
 }
 
 function GetHeader() {
   return (
-    <div className="mb-5 text-center">
+    <div className="mb-5 text-center p-5">
       <h2>DisDrive: Distracted Driving Detection</h2>
     </div>
   );
