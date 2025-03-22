@@ -1,22 +1,19 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import "bootstrap/dist/css/bootstrap.min.css";
+import LandingScreen from "./screens/LandingScreen";
 import { createBrowserRouter, RouterProvider } from "react-router";
-import StartScreen from "./screens/StartScreen.tsx";
-import LogsScreen from "./screens/LogsScreen.tsx";
-import SettingsScreen from "./screens/SettingsScreen.tsx";
-import StartSessionScreen from "./screens/StartSessionScreen.tsx";
+import Session from "./screens/SessionScreen";
+import "bootstrap/dist/css/bootstrap.min.css";
+import SettingsScreen from "./screens/SettingsScreen";
 
-// Router
-const reactRouter = createBrowserRouter([
-  { path: "/", element: <StartScreen /> },
-  { path: "/start_session", element: <StartSessionScreen /> },
-  { path: "/logs", element: <LogsScreen /> },
+const router = createBrowserRouter([
+  { path: "/", element: <LandingScreen /> },
+  { path: "/session", element: <Session /> },
   { path: "/settings", element: <SettingsScreen /> },
 ]);
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <RouterProvider router={reactRouter} />
+    <RouterProvider router={router} />
   </StrictMode>
 );
