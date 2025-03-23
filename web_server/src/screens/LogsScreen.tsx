@@ -1,5 +1,5 @@
 function LogsScreen() {
-  return <div>LogsScreen</div>;
+  return (<div className="bg-danger"></div>);
 }
 
 export default LogsScreen;

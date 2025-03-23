@@ -42,16 +42,36 @@ const LiveFeed: React.FC = () => {
   }, []);
 
   return (
-    <div className="d-flex flex-column p-4 text-center bg-warning w-100">
-      <h2 className="text-xl font-bold mb-4">Live Driver Monitoring</h2>
+    <div className="d-flex flex-column text-center bg-white w-100">
       {imageSrc ? (
         <img src={imageSrc} alt="Live Feed" className="img-fluid mx-auto" />
       ) : (
         <p className="text-gray-500">Connecting to camera...</p>
       )}
-      <h3 className="mt-4 text-lg font-semibold text-red-500">{behavior}</h3>
+      {GetLabels(behavior)}
     </div>
   );
 };
+
+function GetLabels(behavior: string) {
+  return (
+    <div className="d-flex flex-row w-100">
+      <div className="flex-column text-center w-100 justify-content-center align-items-center">
+        <p>
+          Status:{" "}
+          {behavior !== "Safe Driving"
+            ? behavior !== "Waiting for detection..."
+              ? "Distracted"
+              : "Connecting..."
+            : "Not Distracted"}
+        </p>
+        <p>Behavior: {behavior}</p>
+      </div>
+      <div className="d-flex w-100 text-center bg-primary justify-content-center align-items-center">
+        <p>Time Elapsed: asdasd</p>
+      </div>
+    </div>
+  );
+}
 
 export default LiveFeed;

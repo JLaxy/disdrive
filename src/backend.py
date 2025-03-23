@@ -15,10 +15,10 @@ _WEBSERVER_PATH = "./web_server"
 _DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 _BEHAVIOR_LABEL = {
     0: "Safe Driving",
-    1: "Texting Right",
-    2: "Texting Left",
-    3: "Talking using Phone Right",
-    4: "Talking using Phone Left",
+    1: "Texting",
+    2: "Texting",
+    3: "Talking using Phone",
+    4: "Talking using Phone",
     5: "Drinking",
     6: "Head Down",
     7: "Look Behind",
@@ -41,12 +41,14 @@ frame_buffer = deque(maxlen=20)
 
 # ───── SHARED STATE ────────────────────────────────────────────────
 latest_data = {"frame": None, "behavior": "Detecting..."}
-clients = set()
+# Shared boolean toggle controlled by frontend
+toggle_state = {"enabled": True}
+clients = set()  # Store connected clients
 
 # ───── CAMERA SETUP ────────────────────────────────────────────────
 cap = cv2.VideoCapture(0)
 if not cap.isOpened():
-    print("Unable to open camera!")
+    print("❌ Unable to open camera!")
     exit()
 
 # ───── FEATURE EXTRACTION ──────────────────────────────────────────
@@ -73,6 +75,7 @@ async def detection_loop():
         if not ret:
             continue
 
+        # Extract features using CLIP encoder
         feature = extract_features(frame)
         frame_buffer.append(feature)
 
@@ -84,44 +87,88 @@ async def detection_loop():
                 output = torch.argmax(output, dim=1).item()
                 behavior = _BEHAVIOR_LABEL[output]
 
-        # Encode frame to base64
+        # Encode frame to base64 for transmission
         _, buffer = cv2.imencode('.jpg', frame)
         frame_bytes = base64.b64encode(buffer).decode('utf-8')
 
-        # Update shared state
+        # Update shared state for all clients to access
         latest_data["frame"] = frame_bytes
         latest_data["behavior"] = behavior
 
-        await asyncio.sleep(0.01)
+        await asyncio.sleep(0.01)  # Prevent busy-waiting
 
-# ───── WEBSOCKET CLIENT HANDLER ────────────────────────────────────
+# ───── SEND LOOP (FRAME + BEHAVIOR TO FRONTEND) ────────────────────
+
+
+async def send_loop(websocket):
+    try:
+        while True:
+            if latest_data["frame"] is not None:
+                await websocket.send(json.dumps({
+                    "frame": latest_data["frame"],
+                    "behavior": latest_data["behavior"],
+                    "toggle": toggle_state["enabled"]
+                }))
+            await asyncio.sleep(0.01)
+    except websockets.ConnectionClosed:
+        print("📤 send_loop: Client disconnected")
+    except Exception as e:
+        print(f"⚠️ send_loop error: {e}")
+
+# ───── RECEIVE LOOP (HANDLE TOGGLE FROM FRONTEND) ──────────────────
+
+
+async def receive_loop(websocket):
+    try:
+        async for message in websocket:
+            try:
+                data = json.loads(message)
+                if "toggle" in data:
+                    toggle_state["enabled"] = data["toggle"]
+                    print(f"🔁 Toggled alert: {toggle_state['enabled']}")
+            except json.JSONDecodeError:
+                print("⚠️ Received invalid JSON from frontend.")
+    except websockets.ConnectionClosed:
+        print("📥 receive_loop: Client disconnected")
+    except Exception as e:
+        print(f"⚠️ receive_loop error: {e}")
+
+# ───── COMBINED CLIENT HANDLER ─────────────────────────────────────
 
 
 async def video_stream(websocket):
     clients.add(websocket)
     print("📡 Client connected")
-    try:
-        while True:
-            if latest_data["frame"] is not None:
-                await websocket.send(json.dumps(latest_data))
-            await asyncio.sleep(0.01)
-    except websockets.ConnectionClosed:
-        print("🔌 Client disconnected")
-    finally:
-        clients.remove(websocket)
+
+    # Create concurrent send and receive tasks for each client
+    sender_task = asyncio.create_task(send_loop(websocket))
+    receiver_task = asyncio.create_task(receive_loop(websocket))
+
+    # Wait until one task finishes (disconnect or error)
+    done, pending = await asyncio.wait(
+        [sender_task, receiver_task],
+        return_when=asyncio.FIRST_COMPLETED,
+    )
+
+    # Cancel any remaining tasks and clean up
+    for task in pending:
+        task.cancel()
+
+    clients.remove(websocket)
+    print("🔌 Client disconnected")
 
 # ───── MAIN ENTRY POINT ────────────────────────────────────────────
 
 
 async def main():
-    # Start detection loop
+    # Start model detection in background
     asyncio.create_task(detection_loop())
 
     # Start WebSocket server
     async with websockets.serve(video_stream, "0.0.0.0", 8765):
         print("✅ WebSocket server started on ws://0.0.0.0:8765")
 
-        # Start React frontend
+        # Automatically start React frontend
         try:
             print("🚀 Starting React frontend...")
             subprocess.Popen(["npm", "run", "dev"],
@@ -129,7 +176,7 @@ async def main():
         except Exception as e:
             print(f"⚠️ Failed to start React frontend: {e}")
 
-        await asyncio.Future()  # Keep running forever
+        await asyncio.Future()  # Keep server running forever
 
 # ───── RUN APP ─────────────────────────────────────────────────────
 if __name__ == "__main__":
