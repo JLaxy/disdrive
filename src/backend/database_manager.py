@@ -18,6 +18,7 @@ class DatabaseManager:
         try:
             conn = sqlite3.connect(self.db_path)
             conn.close()
+            print(f"Successfully connected to database {self.db_path}")
             return True
         except sqlite3.Error as e:
             print(f"Database connection error: {e}")
