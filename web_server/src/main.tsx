@@ -6,6 +6,7 @@ import "bootstrap/dist/css/bootstrap.min.css";
 import SettingsScreen from "./screens/SettingsScreen";
 import LogsScreen from "./screens/LogsScreen";
 import SessionScreen from "./screens/SessionScreen";
+import { DisdriveProvider } from "./contexts/DisdriveContext";
 
 const router = createBrowserRouter([
   { path: "/", element: <LandingScreen /> },
@@ -16,6 +17,8 @@ const router = createBrowserRouter([
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <RouterProvider router={router} />
+    <DisdriveProvider>
+      <RouterProvider router={router} />
+    </DisdriveProvider>
   </StrictMode>
 );

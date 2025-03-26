@@ -1,5 +1,6 @@
 import { Button, Container } from "react-bootstrap";
 import { useNavigate } from "react-router";
+import { useDisdriveContext } from "../contexts/DisdriveContext";
 
 function GetButton(btnVariant: string, btnText: string, btnNavigate: string) {
   const navigate = useNavigate();
@@ -15,6 +16,7 @@ function GetButton(btnVariant: string, btnText: string, btnNavigate: string) {
 }
 
 function GetButtons() {
+  const { hasOngoingSession } = useDisdriveContext();
   return (
     <div className="d-flex flex-column gap-3 w-100 justify-content-center align-items-center">
       {GetButton("primary", "View Session", "/session")}
@@ -23,7 +25,7 @@ function GetButtons() {
       <Button
         variant="danger"
         className="btn-lg w-75"
-        onClick={() => alert("shutting down!")}
+        onClick={() => alert(hasOngoingSession)}
       >
         Shutdown
       </Button>
