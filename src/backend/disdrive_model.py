@@ -32,7 +32,8 @@ class DisdriveModel:
         self.model.eval()
 
         self.frame_buffer = deque(maxlen=20)
-        self.latest_data = {"frame": None, "behavior": "Detecting..."}
+        self.latest_detection_data = {
+            "frame": None, "behavior": "Detecting..."}
         self.cameraID = cameraID
         self.has_session: bool = has_session
 
@@ -63,11 +64,11 @@ class DisdriveModel:
             # Encode frame to base64 for transmission
             _, buffer = cv2.imencode('.jpg', frame)
             frame_bytes = base64.b64encode(buffer).decode('utf-8')
-            self.latest_data["frame"] = frame_bytes
+            self.latest_detection_data["frame"] = frame_bytes
 
             # If to not detect, skip detection
             if not self.has_session:
-                self.latest_data["behavior"] = "Detection Paused"
+                self.latest_detection_data["behavior"] = "Detection Paused"
                 await asyncio.sleep(0.01)  # Prevent busy-waiting
                 continue
 
@@ -85,9 +86,7 @@ class DisdriveModel:
                     behavior = _BEHAVIOR_LABEL[output]
 
             # Update shared state for all clients to access
-            self.latest_data["behavior"] = behavior
-
-            print(behavior)
+            self.latest_detection_data["behavior"] = behavior
             await asyncio.sleep(0.01)  # Prevent busy-waiting
 
     def open_camera(self):
