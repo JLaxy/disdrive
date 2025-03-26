@@ -24,14 +24,19 @@ _BEHAVIOR_LABEL = {
 class DisdriveModel:
     """Handles all functionalities related to the Machine Learning Model"""
 
-    def __init__(self):
+    def __init__(self, cameraID: str, has_session: bool):
         self.model = HybridModel()
         self.model.load_state_dict(torch.load(
             _TRAINED_MODEL_SAVE_PATH, map_location=_DEVICE))
         self.model.to(_DEVICE)
         self.model.eval()
+
         self.frame_buffer = deque(maxlen=20)
         self.latest_data = {"frame": None, "behavior": "Detecting..."}
+        self.cameraID = cameraID
+        self.has_session: bool = has_session
+
+        # TODO: Pass camera ID then open that
         self.open_camera()
 
     def extract_features(self, frame):
@@ -49,9 +54,21 @@ class DisdriveModel:
 
     async def detection_loop(self):
         """Responsible for detecting behavior of driver"""
+        print("Starting Detection...")
         while True:
             ret, frame = self.cap.read()
             if not ret:
+                continue
+
+            # Encode frame to base64 for transmission
+            _, buffer = cv2.imencode('.jpg', frame)
+            frame_bytes = base64.b64encode(buffer).decode('utf-8')
+            self.latest_data["frame"] = frame_bytes
+
+            # If to not detect, skip detection
+            if not self.has_session:
+                self.latest_data["behavior"] = "Detection Paused"
+                await asyncio.sleep(0.01)  # Prevent busy-waiting
                 continue
 
             # Extract features using CLIP encoder
@@ -67,14 +84,10 @@ class DisdriveModel:
                     output = torch.argmax(output, dim=1).item()
                     behavior = _BEHAVIOR_LABEL[output]
 
-            # Encode frame to base64 for transmission
-            _, buffer = cv2.imencode('.jpg', frame)
-            frame_bytes = base64.b64encode(buffer).decode('utf-8')
-
             # Update shared state for all clients to access
-            self.latest_data["frame"] = frame_bytes
             self.latest_data["behavior"] = behavior
 
+            print(behavior)
             await asyncio.sleep(0.01)  # Prevent busy-waiting
 
     def open_camera(self):
