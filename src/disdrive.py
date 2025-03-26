@@ -1,14 +1,24 @@
-from backend.model_loader import ModelLoader
+from backend.disdrive_model import DisdriveModel
+from backend.websocket_service import WebsocketService
+import asyncio
 
 
-class Disdrive:
-    def __init__(self):
-        print("Starting Disdrive...")
+async def main():
+    print("Starting Disdrive...")
 
-        # Load Model
-        self.hybrid_model = ModelLoader()
+    # Load Database Handler
+    # Load Settings from Database
+    # Load Model
+    hybrid_model = DisdriveModel()
+    # Start Detection Loop
+    # Start Websocket
+    websocket_service = WebsocketService()
+    # Start Frontend
 
 
 # Main function
 if __name__ == "__main__":
-    disdrive = Disdrive()
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(main())
+    loop.run_forever()
