@@ -1,19 +1,21 @@
-import React, { useState } from "react";
 import { Dropdown } from "react-bootstrap";
 
-const CameraDropDown: React.FC = () => {
-  const [selected, setSelected] = useState<string>("Select an option");
+interface Props {
+  selected: string;
+  onSelect: (camera: string) => void;
+}
 
+const CameraDropDown: React.FC<Props> = ({ selected, onSelect }) => {
   const handleSelect = (eventKey: string | null) => {
     if (eventKey) {
-      setSelected(eventKey);
+      onSelect(eventKey);
     }
   };
 
   return (
     <Dropdown onSelect={handleSelect}>
-      <Dropdown.Toggle
-        variant="primary"
+      <Dropdown.Toggle 
+        variant="primary" 
         id="dropdown-basic"
         className="w-100 text-start justify-content-between d-flex align-items-center"
       >
