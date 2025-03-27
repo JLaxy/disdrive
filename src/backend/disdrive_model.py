@@ -36,15 +36,15 @@ class DisdriveModel:
         self.latest_detection_data = {
             "frame": None, "behavior": "Detecting..."}
         self.database_queries = database_queries
-        self.has_ongoing_session = False
+        self.update_session_status()
 
         # TODO: Pass camera ID then open that
         self.open_camera()
 
     def update_session_status(self):
         """Updates the session status"""
-        self.has_ongoing_session = self.database_queries.get_settings()[
-            "has_ongoing_session"]
+        self.has_ongoing_session = bool(self.database_queries.get_settings()[
+            "has_ongoing_session"])
 
     def extract_features(self, frame):
         """Extracts features of retrieved frame from camera"""

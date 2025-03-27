@@ -31,8 +31,8 @@ export const DisdriveProvider = ({
 
     ws.current.onmessage = (event) => {
       try {
-        console.log("received message");
         const data: DisdriveContextType = JSON.parse(event.data);
+        console.log(`📡 Received message from server: `, data);
         setIsLogging(data.is_logging);
         setHasOngoingSession(data.has_ongoing_session);
       } catch (error) {
@@ -77,7 +77,7 @@ export const DisdriveProvider = ({
     // Syncs data with the backend
     switch (data.action) {
       case "toggle_logging":
-        setIsLogging(!is_logging);
+        setIsLogging(is_logging ? false : true);
         break;
       case "start_session":
         setHasOngoingSession(true);

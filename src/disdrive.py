@@ -17,10 +17,6 @@ async def main():
     # Load Database Handler
     database_query = DatabaseQueries(_PATH_TO_DB)
 
-    # Load Settings from Database
-    _SETTINGS = database_query.get_settings()
-    print(_SETTINGS["has_ongoing_session"])
-
     # Load Model
     hybrid_model = DisdriveModel(database_query)
 

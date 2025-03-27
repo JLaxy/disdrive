@@ -92,9 +92,9 @@ class WebsocketService:
 
             # Handle receiving messages
             async for message in client:
-                print(f"📨 Received: {message}")
+                print(f"📨 Received: {message} in websocket_service!")
 
-                await self.message_handler.process_message(message)
+                await self.message_handler.process_message(message, self)
 
         except websockets.ConnectionClosed:
             print(f"Client {client_address} disconnected from Disdrive!")
@@ -115,3 +115,23 @@ class WebsocketService:
     def get_updated_settings(self):
         """Retrieves current settings from database"""
         return self.database_queries.get_settings()
+
+    async def broadcast_settings(self):
+        """Broadcast current settings to all connected Disdrive App clients"""
+        try:
+            # Get the current settings
+            settings = json.dumps(self.get_updated_settings())
+
+            print(f"Broadcasting settings {settings} to clients...")
+
+            # Create a list of tasks to send settings to each client
+            broadcast_tasks = [
+                client.send(settings)
+                for client in self.disdrive_app_clients
+            ]
+
+            # Run all broadcast tasks concurrently
+            if broadcast_tasks:
+                await asyncio.gather(*broadcast_tasks)
+        except Exception as e:
+            print(f"Error broadcasting settings: {e}")

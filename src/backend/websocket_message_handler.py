@@ -1,3 +1,4 @@
+import asyncio
 import json
 from typing import Dict, Any
 from backend.disdrive_model import DisdriveModel
@@ -11,7 +12,7 @@ class MessageHandler:
         self.disdrive_model = disdrive_model
         self.database_queries = database_queries
 
-    async def process_message(self, message: str) -> Dict[str, Any]:
+    async def process_message(self, message: str, websocket_service) -> Dict[str, Any]:
         """
         Process incoming WebSocket messages
 
@@ -50,7 +51,11 @@ class MessageHandler:
 
             # If handler is valid, call it with the data
             if handler:
-                return handler(data)
+                # Call handler
+                response = handler(data, websocket_service)
+                # Broadcast settings change to clients
+                asyncio.create_task(websocket_service.broadcast_settings())
+                return response
             else:
                 return {
                     'status': 'error',
@@ -68,7 +73,7 @@ class MessageHandler:
                 'message': f'Unexpected error: {str(e)}'
             }
 
-    def update_settings(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def update_settings(self, data: Dict[str, Any], websocket_service) -> Dict[str, Any]:
         """
         Update multiple settings at once
 
@@ -97,7 +102,7 @@ class MessageHandler:
                 'message': f'Failed to update settings: {str(e)}'
             }
 
-    def start_session(self, data: Dict[str, Any] = None) -> Dict[str, Any]:
+    def start_session(self, data: Dict[str, Any], websocket_service) -> Dict[str, Any]:
         """
         Start a new detection session
 
@@ -125,7 +130,7 @@ class MessageHandler:
                 'message': f'Failed to start session: {str(e)}'
             }
 
-    def stop_session(self, data: Dict[str, Any] = None) -> Dict[str, Any]:
+    def stop_session(self, data: Dict[str, Any], websocket_service) -> Dict[str, Any]:
         """
         Stop the current detection session
 
@@ -153,7 +158,7 @@ class MessageHandler:
                 'message': f'Failed to stop session: {str(e)}'
             }
 
-    def update_camera(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def update_camera(self, data: Dict[str, Any], websocket_service) -> Dict[str, Any]:
         """
         Update camera settings
 
@@ -186,7 +191,7 @@ class MessageHandler:
                 'message': f'Failed to update camera: {str(e)}'
             }
 
-    def toggle_logging(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def toggle_logging(self, data: Dict[str, Any], websocket_service) -> Dict[str, Any]:
         """
         Toggle logging on/off
 
@@ -197,8 +202,9 @@ class MessageHandler:
             Response with logging toggle status
         """
         try:
-            is_logging = data.get('is_logging', True)
-
+            # Get opposite of current settings
+            is_logging = not bool(
+                websocket_service.get_updated_settings()["is_logging"])
             print(f'Toggling logging to: {is_logging}')
 
             # Update logging setting

@@ -8,6 +8,7 @@ class DatabaseQueries:
     def __init__(self, path_to_db):
         print("Initializing DatabaseQueries...")
         self.db_manager: DatabaseManager = DatabaseManager(path_to_db)
+        self.auto_start_session()
 
     def get_settings(self):
         """Returns saved settings in dictionary form from database"""
@@ -29,6 +30,10 @@ class DatabaseQueries:
         }
 
         return settings
+
+    def auto_start_session(self):
+        """Auto start session on app start"""
+        self.update_setting('has_ongoing_session', True)
 
     def update_setting(self, key: str, value: Any):
         """
