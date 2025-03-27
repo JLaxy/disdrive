@@ -8,6 +8,9 @@ import subprocess
 from collections import deque
 from frame_sequences.hybrid_model import HybridModel
 from PIL import Image
+import time
+from playsound import playsound
+import threading
 
 # ───── CONFIGURATION ───────────────────────────────────────────────
 _TRAINED_MODEL_SAVE_PATH = "./saved_models/disdrive_model.pth"
@@ -66,10 +69,14 @@ def extract_features(frame):
 
     return features
 
+# ───── ALERT SOUND ─────────────────────────────────────────────────
+def play_alert_sound():
+    threading.Thread(target=playsound, args=("./src/alert.mp3",), daemon=True).start()
+
 # ───── DETECTION LOOP (RUNS IN BACKGROUND) ─────────────────────────
-
-
 async def detection_loop():
+    global last_alert_time
+    
     while True:
         ret, frame = cap.read()
         if not ret:
@@ -86,6 +93,15 @@ async def detection_loop():
                 output = model(sequence_tensor)
                 output = torch.argmax(output, dim=1).item()
                 behavior = _BEHAVIOR_LABEL[output]
+                
+                # Play alert sound if enabled
+                if 'last_alert_time' not in globals():
+                    last_alert_time = 0
+                current_time = time.time()
+                print(current_time)
+                if behavior == "Drinking" and (current_time - last_alert_time) >= 1:
+                    play_alert_sound()
+                    last_alert_time = current_time
 
         # Encode frame to base64 for transmission
         _, buffer = cv2.imencode('.jpg', frame)
