@@ -20,8 +20,7 @@ async def main():
     print(_SETTINGS["has_ongoing_session"])
 
     # Load Model
-    hybrid_model = DisdriveModel(
-        _SETTINGS["camera_id"], _SETTINGS["has_ongoing_session"])
+    hybrid_model = DisdriveModel(_SETTINGS)
 
     # Start Detection Loop
     asyncio.create_task(hybrid_model.detection_loop())

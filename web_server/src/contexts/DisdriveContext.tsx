@@ -30,6 +30,7 @@ export const DisdriveProvider = ({
 
     ws.current.onmessage = (event) => {
       try {
+        console.log("received message");
         const data: DisdriveContextType = JSON.parse(event.data);
         setIsLogging(data.is_logging);
         setHasOngoingSession(data.has_ongoing_session);

@@ -24,7 +24,7 @@ _BEHAVIOR_LABEL = {
 class DisdriveModel:
     """Handles all functionalities related to the Machine Learning Model"""
 
-    def __init__(self, cameraID: str, has_session: bool):
+    def __init__(self, _SETTINGS: dict):
         self.model = HybridModel()
         self.model.load_state_dict(torch.load(
             _TRAINED_MODEL_SAVE_PATH, map_location=_DEVICE))
@@ -34,8 +34,7 @@ class DisdriveModel:
         self.frame_buffer = deque(maxlen=20)
         self.latest_detection_data = {
             "frame": None, "behavior": "Detecting..."}
-        self.cameraID = cameraID
-        self.has_session: bool = has_session
+        self._SETTINGS = _SETTINGS
 
         # TODO: Pass camera ID then open that
         self.open_camera()
@@ -67,7 +66,7 @@ class DisdriveModel:
             self.latest_detection_data["frame"] = frame_bytes
 
             # If to not detect, skip detection
-            if not self.has_session:
+            if not self._SETTINGS["has_ongoing_session"]:
                 self.latest_detection_data["behavior"] = "Detection Paused"
                 await asyncio.sleep(0.01)  # Prevent busy-waiting
                 continue

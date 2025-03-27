@@ -3,6 +3,8 @@ import json
 import asyncio
 import websockets
 
+_CONNECTION_TIMEOUT = 5  # No. of seconds to check if to disconnect clients
+
 
 class WebsocketService:
     def __init__(self, disdrive_model: DisdriveModel, _SETTINGS: dict):
@@ -26,7 +28,7 @@ class WebsocketService:
     async def start_disdrive_app_socket(self, ip: str, port: int):
         """Opens Disdrive App socket"""
         # Start Live Feed websocket
-        async with websockets.serve(self.disdrive_app_socket, ip, port):
+        async with websockets.serve(self.disdrive_app_socket, ip, port, ping_interval=3, ping_timeout=5):
             print(
                 f"✅ DisDrive App WebSocket Server started on ws://{ip}:{port}")
 
@@ -62,36 +64,64 @@ class WebsocketService:
         client_address = f"{client.remote_address[0]}:{client.remote_address[1]}"
         print(f"Client {client_address} connected to Disdrive Frontend!")
 
-        # Add client
         self.disdrive_app_clients.add(client)
 
         try:
-
             print(f"sending settings: {self._SETTINGS}")
-            # Send initial settings upon connection
             await client.send(json.dumps(self._SETTINGS))
 
-            # Start sender and receiver listeners
-            sender = asyncio.create_task(self.disdrive_app_socket_send(client))
+            keepalive = asyncio.create_task(
+                self.disdrive_app_socket_keepalive(client))
             receiver = asyncio.create_task(
                 self.disdrive_app_socket_receive(client))
 
-            # Wait until one task finishes (disconnect or error)
-            done, pending = await asyncio.wait([sender, receiver], return_when=asyncio.FIRST_COMPLETED)
+            done, pending = await asyncio.wait([keepalive, receiver], return_when=asyncio.FIRST_COMPLETED)
 
         except websockets.ConnectionClosed:
             print(f"Client {client_address} disconnected from Disdrive!")
         except Exception as e:
             print(f"An error occurred in disdrive_app_socket: {e}")
         finally:
-            self.disdrive_app_clients.remove(client)
+            print(
+                f"Client {client_address} disconnected from Disdrive!\nCleaning up...")
+            self.disdrive_app_clients.discard(client)
+
             for task in pending:
                 task.cancel()
+                try:
+                    await task  # Ensure proper cleanup
+                except asyncio.CancelledError:
+                    pass
 
-    async def disdrive_app_socket_send(self, client):
-        """Sends Data to clients connected to the websocket"""
-        print("disdrive_app_socket_send started")
+            print(f"✅ Tasks cleaned up for {client_address}")
+
+    async def disdrive_app_socket_keepalive(self, client):
+        """Keeps WebSocket connection alive and detects disconnection."""
+        print("📤 disdrive_app_socket_keepalive started")
+
+        try:
+            while True:  # Run indefinitely
+                await asyncio.Future()
+
+        except websockets.ConnectionClosedOK:
+            print("✅ keepalive: Client disconnected normally.")
+        except websockets.ConnectionClosed as e:
+            print(
+                f"❌ keepalive: Client disconnected unexpectedly (code={e.code}, reason={e.reason})")
+        except Exception as e:
+            print(f"⚠️ keepalive error: {e}")
 
     async def disdrive_app_socket_receive(self, client):
-        """Sends Data to clients connected to the websocket"""
-        print("disdrive_app_socket_receive started")
+        """Receives Data from clients and detects disconnection"""
+        print("📩 disdrive_app_socket_receive started")
+
+        try:
+            async for message in client:
+                print(f"📨 Received: {message}")
+
+        except websockets.ConnectionClosed as e:
+            print(f"❌ Client disconnected (code={e.code}, reason={e.reason})")
+            return  # 🔥 Avoid raising an unnecessary exception
+
+        except Exception as e:
+            print(f"⚠️ receive_loop error: {e}")
