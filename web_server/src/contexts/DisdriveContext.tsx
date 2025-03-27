@@ -59,10 +59,34 @@ export const DisdriveProvider = ({
   // Function to send messages to the backend
   const sendMessage = (data: Record<string, string>) => {
     console.log(`sending ${data} to server...`);
-    if (ws.current && ws.current.readyState === WebSocket.OPEN) {
-      ws.current.send(JSON.stringify(data));
-    } else {
-      console.warn("🚫 WebSocket is not open. Unable to send message.");
+    try {
+      if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+        // Send to backend
+        ws.current.send(JSON.stringify(data));
+        // If no errors, sync data with the frontend
+        handleChange(data);
+      } else {
+        console.warn("🚫 WebSocket is not open. Unable to send message.");
+      }
+    } catch (e) {
+      console.error("⚠️ Error sending message to WebSocket server:", e);
+    }
+  };
+
+  const handleChange = (data: Record<string, string>) => {
+    // Syncs data with the backend
+    switch (data.action) {
+      case "toggle_logging":
+        setIsLogging(!is_logging);
+        break;
+      case "start_session":
+        setHasOngoingSession(true);
+        break;
+      case "end_session":
+        setHasOngoingSession(false);
+        break;
+      default:
+        console.warn("🚫 Invalid action:", data.action);
     }
   };
 

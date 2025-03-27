@@ -10,6 +10,7 @@ _PATH_TO_DB = "./database/disdrive_db.db"
 _WEBSERVER_PATH = "./web_server"
 _SETTINGS = {}
 
+
 async def main():
     print("Starting Disdrive...")
 
@@ -24,11 +25,12 @@ async def main():
     hybrid_model = DisdriveModel(_SETTINGS)
 
     # Create WebSocket Service
-    websocket_service = WebsocketService(hybrid_model, _SETTINGS)
+    websocket_service = WebsocketService(
+        hybrid_model, database_query)
 
     # Create tasks for detection and websockets
     detection_task = asyncio.create_task(hybrid_model.detection_loop())
-    
+
     # Use asyncio.create_task with explicit server methods
     disdrive_socket_task = asyncio.create_task(
         websocket_service.start_disdrive_app_socket("0.0.0.0", 8766)
@@ -43,8 +45,8 @@ async def main():
     try:
         # Wait for all tasks
         await asyncio.gather(
-            detection_task, 
-            disdrive_socket_task, 
+            detection_task,
+            disdrive_socket_task,
             livefeed_socket_task
         )
     except asyncio.CancelledError:
@@ -57,23 +59,26 @@ async def main():
             frontend_process.terminate()
         websocket_service.stop_servers()
 
+
 def start_frontend():
     """Starts React Frontend"""
     try:
         print("🚀 Starting React frontend...")
         return subprocess.Popen(
             ["npm", "run", "dev"],
-            cwd=_WEBSERVER_PATH, 
+            cwd=_WEBSERVER_PATH,
             shell=True
         )
     except Exception as e:
         print(f"⚠️ Failed to start React frontend: {e}")
         return None
 
+
 def handle_exit(signum, frame):
     """Handle system signals for graceful shutdown"""
     print("\nReceived exit signal. Shutting down...")
     sys.exit(0)
+
 
 # Main execution
 if __name__ == "__main__":

@@ -1,11 +1,13 @@
 import json
 import asyncio
 import websockets
+from backend.websocket_message_handler import MessageHandler
 
 _CONNECTION_TIMEOUT = 5  # No. of seconds to check if to disconnect clients
 
+
 class WebsocketService:
-    def __init__(self, disdrive_model, _SETTINGS):
+    def __init__(self, disdrive_model, database_queries):
         print("Starting websocket service...")
 
         # Collection of clients
@@ -14,7 +16,9 @@ class WebsocketService:
 
         # Syncing references
         self.disdrive_model = disdrive_model
-        self._SETTINGS = _SETTINGS
+        self.database_queries = database_queries
+
+        self.message_handler = MessageHandler(disdrive_model, database_queries)
 
         # Flags to control server shutdown
         self.livefeed_server = None
@@ -36,7 +40,8 @@ class WebsocketService:
         """Opens Disdrive App socket"""
         try:
             self.disdrive_app_server = await websockets.serve(self.disdrive_app_socket, ip, port, ping_interval=3, ping_timeout=5)
-            print(f"✅ DisDrive App WebSocket Server started on ws://{ip}:{port}")
+            print(
+                f"✅ DisDrive App WebSocket Server started on ws://{ip}:{port}")
             await self.disdrive_app_server.wait_closed()
         except Exception as e:
             print(f"❌ DisDrive App WebSocket Server error: {e}")
@@ -73,17 +78,23 @@ class WebsocketService:
         """Socket connection for Disdrive Application"""
         client_address = f"{client.remote_address[0]}:{client.remote_address[1]}"
         print(f"Client {client_address} connected to Disdrive Frontend!")
-        
+
         try:
             self.disdrive_app_clients.add(client)
-            
+
+            # Get updated settings
+            settings = self.get_updated_settings()
+
             # Send settings to client
-            print(f"Sending settings: {self._SETTINGS} to client {client_address}")
-            await client.send(json.dumps(self._SETTINGS))
+            print(
+                f"Sending settings: {settings} to client {client_address}")
+            await client.send(json.dumps(settings))
 
             # Handle receiving messages
             async for message in client:
                 print(f"📨 Received: {message}")
+
+                await self.message_handler.process_message(message)
 
         except websockets.ConnectionClosed:
             print(f"Client {client_address} disconnected from Disdrive!")
@@ -99,3 +110,7 @@ class WebsocketService:
             self.livefeed_server.close()
         if self.disdrive_app_server:
             self.disdrive_app_server.close()
+
+    def get_updated_settings(self):
+        """Retrieves current settings from database"""
+        return self.database_queries.get_settings()

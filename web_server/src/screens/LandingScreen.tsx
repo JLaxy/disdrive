@@ -16,7 +16,7 @@ function GetButton(btnVariant: string, btnText: string, btnNavigate: string) {
 }
 
 function GetButtons() {
-  const { sendMessage } = useDisdriveContext();
+  const { sendMessage, has_ongoing_session } = useDisdriveContext();
   return (
     <div className="d-flex flex-column gap-3 w-100 justify-content-center align-items-center">
       {GetButton("primary", "View Session", "/session")}
@@ -25,7 +25,13 @@ function GetButtons() {
       <Button
         variant="danger"
         className="btn-lg w-75"
-        onClick={() => sendMessage({ test: "18" })}
+        onClick={() => {
+          alert(`before: ${has_ongoing_session}`);
+          sendMessage({
+            action: has_ongoing_session ? "stop_session" : "start_session",
+          });
+          alert(`after: ${has_ongoing_session}`);
+        }}
       >
         Shutdown
       </Button>
