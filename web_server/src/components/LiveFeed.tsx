@@ -1,22 +1,28 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, memo } from "react";
 
 interface WebSocketData {
   frame: string;
   behavior: string;
 }
 
-const LiveFeed: React.FC = () => {
+const LiveFeed: React.FC = memo(() => {
   const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [behavior, setBehavior] = useState<string>("Waiting for detection...");
+  const socketRef = useRef<WebSocket | null>(null); // Persistent WebSocket reference
 
   useEffect(() => {
-    const socket = new WebSocket(`ws://${window.location.hostname}:8765`);
+    console.log("📌 LiveFeed MOUNTED"); // Log when component mounts
 
-    socket.onopen = () => {
-      console.log("✅ WebSocket connection established");
+    if (socketRef.current) return; // Prevent duplicate connections
+
+    const ws = new WebSocket(`ws://${window.location.hostname}:8765`);
+    socketRef.current = ws; // Save reference
+
+    ws.onopen = () => {
+      console.log("✅ WebSocket connected");
     };
 
-    socket.onmessage = (event: MessageEvent) => {
+    ws.onmessage = (event: MessageEvent) => {
       try {
         const data: WebSocketData = JSON.parse(event.data);
         setImageSrc(`data:image/jpeg;base64,${data.frame}`);
@@ -26,20 +32,21 @@ const LiveFeed: React.FC = () => {
       }
     };
 
-    socket.onerror = (error) => {
+    ws.onerror = (error) => {
       console.error("💥 WebSocket error:", error);
     };
 
-    socket.onclose = (event) => {
-      console.warn("🔌 WebSocket connection closed", event.reason);
+    ws.onclose = (event) => {
+      console.warn("🔌 WebSocket closed:", event.reason);
     };
 
-    // Cleanup on unmount
+    // Cleanup function
     return () => {
-      console.log("🧹 Cleaning up WebSocket");
-      socket.close();
+      console.log("🧹 Closing WebSocket connection...");
+      socketRef.current?.close();
+      socketRef.current = null;
     };
-  }, []);
+  }, []); // Empty dependency array ensures it runs **only once**
 
   return (
     <div className="d-flex flex-column text-center bg-white w-100">
@@ -51,7 +58,7 @@ const LiveFeed: React.FC = () => {
       {GetLabels(behavior)}
     </div>
   );
-};
+});
 
 function GetLabels(behavior: string) {
   return (

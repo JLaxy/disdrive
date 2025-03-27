@@ -1,4 +1,3 @@
-import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import LandingScreen from "./screens/LandingScreen";
 import { createBrowserRouter, RouterProvider } from "react-router";
@@ -16,9 +15,7 @@ const router = createBrowserRouter([
 ]);
 
 createRoot(document.getElementById("root")!).render(
-  <StrictMode>
-    <DisdriveProvider>
-      <RouterProvider router={router} />
-    </DisdriveProvider>
-  </StrictMode>
+  <DisdriveProvider>
+    <RouterProvider router={router} />
+  </DisdriveProvider>
 );
