@@ -60,20 +60,20 @@ class WebsocketService:
             self.livefeed_clients.remove(client)
 
     async def disdrive_app_socket(self, client):
-        """Socket connection for Disdrive Application; sends and retrieves settings set on application"""
+        """Socket connection for Disdrive Application"""
         client_address = f"{client.remote_address[0]}:{client.remote_address[1]}"
         print(f"Client {client_address} connected to Disdrive Frontend!")
-
         self.disdrive_app_clients.add(client)
 
         try:
-            print(f"sending settings: {self._SETTINGS}")
+            print(
+                f"sending settings: {self._SETTINGS} to client {client_address}")
             await client.send(json.dumps(self._SETTINGS))
 
             keepalive = asyncio.create_task(
-                self.disdrive_app_socket_keepalive(client))
+                self.disdrive_app_socket_keepalive(client, client_address))
             receiver = asyncio.create_task(
-                self.disdrive_app_socket_receive(client))
+                self.disdrive_app_socket_receive(client, client_address))
 
             done, pending = await asyncio.wait([keepalive, receiver], return_when=asyncio.FIRST_COMPLETED)
 
@@ -83,7 +83,7 @@ class WebsocketService:
             print(f"An error occurred in disdrive_app_socket: {e}")
         finally:
             print(
-                f"Client {client_address} disconnected from Disdrive!\nCleaning up...")
+                f"Client {client_address} disconnected from Disdrive! Cleaning up...")
             self.disdrive_app_clients.discard(client)
 
             for task in pending:
@@ -93,11 +93,12 @@ class WebsocketService:
                 except asyncio.CancelledError:
                     pass
 
-            print(f"✅ Tasks cleaned up for {client_address}")
+            print(f"✅ Sucessfully disconnected {client_address}")
 
-    async def disdrive_app_socket_keepalive(self, client):
+    async def disdrive_app_socket_keepalive(self, client, client_address):
         """Keeps WebSocket connection alive and detects disconnection."""
-        print("📤 disdrive_app_socket_keepalive started")
+        print(
+            f"📤 disdrive_app_socket_keepalive started for client {client_address}")
 
         try:
             while True:  # Run indefinitely
@@ -111,9 +112,10 @@ class WebsocketService:
         except Exception as e:
             print(f"⚠️ keepalive error: {e}")
 
-    async def disdrive_app_socket_receive(self, client):
+    async def disdrive_app_socket_receive(self, client, client_address):
         """Receives Data from clients and detects disconnection"""
-        print("📩 disdrive_app_socket_receive started")
+        print(
+            f"📩 disdrive_app_socket_receive started for client {client_address}")
 
         try:
             async for message in client:

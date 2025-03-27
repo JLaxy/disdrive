@@ -5,6 +5,7 @@ interface DisdriveContextType {
   setIsLogging: (value: boolean) => void;
   has_ongoing_session: boolean;
   setHasOngoingSession: (value: boolean) => void;
+  sendMessage: (value: Record<string, string>) => void;
 }
 
 const DisdriveContext = createContext<DisdriveContextType | undefined>(
@@ -55,6 +56,16 @@ export const DisdriveProvider = ({
     };
   }, []);
 
+  // Function to send messages to the backend
+  const sendMessage = (data: Record<string, string>) => {
+    console.log(`sending ${data} to server...`);
+    if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+      ws.current.send(JSON.stringify(data));
+    } else {
+      console.warn("🚫 WebSocket is not open. Unable to send message.");
+    }
+  };
+
   return (
     <DisdriveContext.Provider
       value={{
@@ -62,6 +73,7 @@ export const DisdriveProvider = ({
         setIsLogging,
         has_ongoing_session,
         setHasOngoingSession,
+        sendMessage,
       }}
     >
       {children}
