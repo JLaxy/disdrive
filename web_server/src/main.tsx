@@ -6,6 +6,7 @@ import SettingsScreen from "./screens/SettingsScreen";
 import LogsScreen from "./screens/LogsScreen";
 import SessionScreen from "./screens/SessionScreen";
 import { DisdriveProvider } from "./contexts/DisdriveContext";
+import { StrictMode } from "react";
 
 const router = createBrowserRouter([
   { path: "/", element: <LandingScreen /> },
@@ -15,7 +16,9 @@ const router = createBrowserRouter([
 ]);
 
 createRoot(document.getElementById("root")!).render(
-  <DisdriveProvider>
-    <RouterProvider router={router} />
-  </DisdriveProvider>
+  <StrictMode>
+    <DisdriveProvider>
+      <RouterProvider router={router} />
+    </DisdriveProvider>
+  </StrictMode>
 );

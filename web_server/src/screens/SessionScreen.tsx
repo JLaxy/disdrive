@@ -2,6 +2,7 @@ import { Button } from "react-bootstrap";
 import LiveFeed from "../components/LiveFeed";
 import { useNavigate } from "react-router";
 import { useDisdriveContext } from "../contexts/DisdriveContext";
+import { closeWebSocket } from "../utils/LiveFeedSocketService";
 
 function SessionScreen() {
   // Retrieve context
@@ -25,7 +26,10 @@ function GetButtons(
       <Button
         variant="secondary"
         className="w-100 btn-lg"
-        onClick={() => navigate("/")}
+        onClick={() => {
+          navigate("/");
+          closeWebSocket();
+        }}
       >
         Go Back
       </Button>

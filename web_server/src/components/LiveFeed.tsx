@@ -1,4 +1,6 @@
 import { useEffect, useState, useRef, memo } from "react";
+import { useLocation } from "react-router-dom";
+import { getWebSocket, closeWebSocket } from "../utils/LiveFeedSocketService";
 
 interface WebSocketData {
   frame: string;
@@ -8,21 +10,16 @@ interface WebSocketData {
 const LiveFeed: React.FC = memo(() => {
   const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [behavior, setBehavior] = useState<string>("Waiting for detection...");
-  const socketRef = useRef<WebSocket | null>(null); // Persistent WebSocket reference
+  const wsRef = useRef<WebSocket | null>(null);
+  const location = useLocation();
 
   useEffect(() => {
-    console.log("📌 LiveFeed MOUNTED"); // Log when component mounts
+    console.log("📌 LiveFeed MOUNTED");
 
-    if (socketRef.current) return; // Prevent duplicate connections
+    // Get or create WebSocket instance
+    wsRef.current = getWebSocket(`ws://${window.location.hostname}:8765`);
 
-    const ws = new WebSocket(`ws://${window.location.hostname}:8765`);
-    socketRef.current = ws; // Save reference
-
-    ws.onopen = () => {
-      console.log("✅ WebSocket connected");
-    };
-
-    ws.onmessage = (event: MessageEvent) => {
+    wsRef.current.onmessage = (event: MessageEvent) => {
       try {
         const data: WebSocketData = JSON.parse(event.data);
         setImageSrc(`data:image/jpeg;base64,${data.frame}`);
@@ -32,21 +29,18 @@ const LiveFeed: React.FC = memo(() => {
       }
     };
 
-    ws.onerror = (error) => {
-      console.error("💥 WebSocket error:", error);
-    };
-
-    ws.onclose = (event) => {
-      console.warn("🔌 WebSocket closed:", event.reason);
-    };
-
-    // Cleanup function
     return () => {
-      console.log("🧹 Closing WebSocket connection...");
-      socketRef.current?.close();
-      socketRef.current = null;
+      console.log("🧹 LiveFeed UNMOUNTED → Checking if WebSocket should close");
+
+      // Close WebSocket only if navigating AWAY from `/session`
+      setTimeout(() => {
+        if (location.pathname !== "/session") {
+          console.log("🛑 Closing WebSocket because user left `/session`");
+          closeWebSocket();
+        }
+      }, 100);
     };
-  }, []); // Empty dependency array ensures it runs **only once**
+  }, [location.pathname]); // Runs when route changes
 
   return (
     <div className="d-flex flex-column text-center bg-white w-100">
