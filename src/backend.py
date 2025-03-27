@@ -99,7 +99,7 @@ async def detection_loop():
                     last_alert_time = 0
                 current_time = time.time()
                 print(current_time)
-                if behavior == "Drinking" and (current_time - last_alert_time) >= 1:
+                if behavior != "Safe Driving" and (current_time - last_alert_time) >= 1:
                     play_alert_sound()
                     last_alert_time = current_time
 
