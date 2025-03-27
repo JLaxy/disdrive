@@ -101,7 +101,8 @@ class WebsocketService:
         except Exception as e:
             print(f"An error occurred in disdrive_app_socket: {e}")
         finally:
-            print(f"Client {client_address} disconnected. Cleaning up...")
+            print(
+                f"Client {client_address} disconnected from Disdrive Frontend. Cleaning up...")
             self.disdrive_app_clients.discard(client)
 
     def stop_servers(self):

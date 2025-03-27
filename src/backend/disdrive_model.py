@@ -5,6 +5,7 @@ import base64
 from collections import deque
 from frame_sequences.hybrid_model import HybridModel
 from PIL import Image
+from backend.database_queries import DatabaseQueries
 
 _TRAINED_MODEL_SAVE_PATH = "./saved_models/disdrive_model.pth"
 _WEBSERVER_PATH = "./web_server"
@@ -24,7 +25,7 @@ _BEHAVIOR_LABEL = {
 class DisdriveModel:
     """Handles all functionalities related to the Machine Learning Model"""
 
-    def __init__(self, _SETTINGS: dict):
+    def __init__(self, database_queries: DatabaseQueries):
         self.model = HybridModel()
         self.model.load_state_dict(torch.load(
             _TRAINED_MODEL_SAVE_PATH, map_location=_DEVICE))
@@ -34,10 +35,16 @@ class DisdriveModel:
         self.frame_buffer = deque(maxlen=20)
         self.latest_detection_data = {
             "frame": None, "behavior": "Detecting..."}
-        self._SETTINGS = _SETTINGS
+        self.database_queries = database_queries
+        self.has_ongoing_session = False
 
         # TODO: Pass camera ID then open that
         self.open_camera()
+
+    def update_session_status(self):
+        """Updates the session status"""
+        self.has_ongoing_session = self.database_queries.get_settings()[
+            "has_ongoing_session"]
 
     def extract_features(self, frame):
         """Extracts features of retrieved frame from camera"""
@@ -66,7 +73,7 @@ class DisdriveModel:
             self.latest_detection_data["frame"] = frame_bytes
 
             # If to not detect, skip detection
-            if not self._SETTINGS["has_ongoing_session"]:
+            if not self.has_ongoing_session:
                 self.latest_detection_data["behavior"] = "Detection Paused"
                 await asyncio.sleep(0.01)  # Prevent busy-waiting
                 continue

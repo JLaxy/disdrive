@@ -6,18 +6,18 @@ import { closeWebSocket } from "../utils/LiveFeedSocketService";
 
 function SessionScreen() {
   // Retrieve context
-  const { has_ongoing_session, setHasOngoingSession } = useDisdriveContext();
+  const { has_ongoing_session, sendMessage } = useDisdriveContext();
   return (
     <div className="d-flex flex-column min-vh-100 bg-dark container align-items-center justify-content-center gap-3">
       <LiveFeed />
-      {GetButtons(has_ongoing_session, setHasOngoingSession)}
+      {GetButtons(has_ongoing_session, sendMessage)}
     </div>
   );
 }
 
 function GetButtons(
   hasOngoingSession: boolean,
-  setHasOngoingSession: (arg0: boolean) => void
+  sendMessage: (arg0: Record<string, string>) => void
 ) {
   const navigate = useNavigate();
   return (
@@ -37,7 +37,8 @@ function GetButtons(
         <Button
           variant="danger"
           className="btn-lg w-100"
-          onClick={() => setHasOngoingSession(false)}
+          // Send message to backend to stop the session
+          onClick={() => sendMessage({ action: "stop_session" })}
         >
           Stop Session
         </Button>
@@ -45,7 +46,8 @@ function GetButtons(
         <Button
           variant="success"
           className="btn-lg w-100"
-          onClick={() => setHasOngoingSession(true)}
+          // Send message to backend to start the session
+          onClick={() => sendMessage({ action: "start_session" })}
         >
           Start Session
         </Button>

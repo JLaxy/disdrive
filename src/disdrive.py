@@ -22,7 +22,7 @@ async def main():
     print(_SETTINGS["has_ongoing_session"])
 
     # Load Model
-    hybrid_model = DisdriveModel(_SETTINGS)
+    hybrid_model = DisdriveModel(database_query)
 
     # Create WebSocket Service
     websocket_service = WebsocketService(

@@ -82,7 +82,7 @@ export const DisdriveProvider = ({
       case "start_session":
         setHasOngoingSession(true);
         break;
-      case "end_session":
+      case "stop_session":
         setHasOngoingSession(false);
         break;
       default:

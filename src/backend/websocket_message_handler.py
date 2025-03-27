@@ -112,6 +112,8 @@ class MessageHandler:
 
             # Set has_ongoing_session to True
             self.database_queries.update_setting('has_ongoing_session', True)
+            # Sync with model
+            self.disdrive_model.update_session_status()
 
             return {
                 'status': 'success',
@@ -138,6 +140,8 @@ class MessageHandler:
 
             # Set has_ongoing_session to False
             self.database_queries.update_setting('has_ongoing_session', False)
+            # Sync with model
+            self.disdrive_model.update_session_status()
 
             return {
                 'status': 'success',
