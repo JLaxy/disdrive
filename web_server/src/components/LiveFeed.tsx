@@ -59,11 +59,12 @@ function GetLabels(behavior: string) {
       <div className="flex-column text-center w-100 justify-content-center align-items-center">
         <p>
           Status:{" "}
-          {behavior !== "Safe Driving"
-            ? behavior !== "Waiting for detection..."
-              ? "Distracted"
-              : "Connecting..."
-            : "Not Distracted"}
+          {behavior === "Detection Paused" ||
+          behavior === "Waiting for detection..."
+            ? "Detection Paused"
+            : behavior === "Safe Driving"
+            ? "Not Distracted"
+            : "Distracted"}
         </p>
         <p>Behavior: {behavior}</p>
       </div>

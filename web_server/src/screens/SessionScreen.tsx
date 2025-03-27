@@ -5,11 +5,11 @@ import { useDisdriveContext } from "../contexts/DisdriveContext";
 
 function SessionScreen() {
   // Retrieve context
-  const { hasOngoingSession, setHasOngoingSession } = useDisdriveContext();
+  const { has_ongoing_session, setHasOngoingSession } = useDisdriveContext();
   return (
     <div className="d-flex flex-column min-vh-100 bg-dark container align-items-center justify-content-center gap-3">
       <LiveFeed />
-      {GetButtons(hasOngoingSession, setHasOngoingSession)}
+      {GetButtons(has_ongoing_session, setHasOngoingSession)}
     </div>
   );
 }

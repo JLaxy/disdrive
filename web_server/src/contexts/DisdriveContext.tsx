@@ -1,9 +1,9 @@
-import { createContext, useState, useContext } from "react";
+import { createContext, useState, useContext, useRef, useEffect } from "react";
 
 interface DisdriveContextType {
-  isLogging: boolean;
+  is_logging: boolean;
   setIsLogging: (value: boolean) => void;
-  hasOngoingSession: boolean;
+  has_ongoing_session: boolean;
   setHasOngoingSession: (value: boolean) => void;
 }
 
@@ -16,15 +16,50 @@ export const DisdriveProvider = ({
 }: {
   children: React.ReactNode;
 }) => {
-  const [isLogging, setIsLogging] = useState(true);
-  const [hasOngoingSession, setHasOngoingSession] = useState(true);
+  const [is_logging, setIsLogging] = useState(true);
+  const [has_ongoing_session, setHasOngoingSession] = useState(true);
+
+  const ws = useRef<WebSocket | null>(null); // Store WebSocket instance
+
+  useEffect(() => {
+    ws.current = new WebSocket(`ws://${window.location.hostname}:8766`);
+
+    ws.current.onopen = () => {
+      console.log("✅ Disdrive Context Connected to WebSocket server");
+    };
+
+    ws.current.onmessage = (event) => {
+      try {
+        const data: DisdriveContextType = JSON.parse(event.data);
+        setIsLogging(data.is_logging);
+        setHasOngoingSession(data.has_ongoing_session);
+      } catch (error) {
+        console.error("⚠️ Error parsing WebSocket message:", error);
+      }
+    };
+
+    ws.current.onclose = (event) => {
+      console.warn(
+        "🔌 WebSocket connection from front-end closed",
+        event.reason
+      );
+    };
+
+    ws.current.onerror = (error) => {
+      console.error("⚠️ WebSocket error:", error);
+    };
+
+    return () => {
+      ws.current?.close();
+    };
+  }, []);
 
   return (
     <DisdriveContext.Provider
       value={{
-        isLogging,
+        is_logging,
         setIsLogging,
-        hasOngoingSession,
+        has_ongoing_session,
         setHasOngoingSession,
       }}
     >

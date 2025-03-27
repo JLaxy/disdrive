@@ -27,7 +27,9 @@ async def main():
     asyncio.create_task(hybrid_model.detection_loop())
 
     # Start Websocket
-    websocket_service = WebsocketService(hybrid_model)
+    websocket_service = WebsocketService(hybrid_model, _SETTINGS)
+    asyncio.create_task(
+        websocket_service.start_disdrive_app_socket("0.0.0.0", 8766))
     asyncio.create_task(
         websocket_service.start_livefeed_socket("0.0.0.0", 8765))
 
