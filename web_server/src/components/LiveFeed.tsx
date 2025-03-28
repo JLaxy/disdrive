@@ -1,6 +1,8 @@
 import { useEffect, useState, useRef, memo } from "react";
 import { useLocation } from "react-router-dom";
 import { getWebSocket, closeWebSocket } from "../utils/LiveFeedSocketService";
+import { useDisdriveContext } from "../contexts/DisdriveContext";
+import { differenceInSeconds } from "date-fns";
 
 interface WebSocketData {
   frame: string;
@@ -12,6 +14,7 @@ const LiveFeed: React.FC = memo(() => {
   const [behavior, setBehavior] = useState<string>("Waiting for detection...");
   const wsRef = useRef<WebSocket | null>(null);
   const location = useLocation();
+  const { session_start, has_ongoing_session } = useDisdriveContext();
 
   useEffect(() => {
     console.log("📌 LiveFeed MOUNTED");
@@ -49,12 +52,45 @@ const LiveFeed: React.FC = memo(() => {
       ) : (
         <p className="text-gray-500">Connecting to camera...</p>
       )}
-      {GetLabels(behavior)}
+      {GetLabels(behavior, session_start, has_ongoing_session)}
     </div>
   );
 });
 
-function GetLabels(behavior: string) {
+function GetLabels(
+  behavior: string,
+  session_start: string,
+  has_ongoing_session: boolean
+) {
+  const [elapsedTime, setElapsedTime] = useState("00:00:00");
+
+  useEffect(() => {
+    if (!has_ongoing_session || !session_start) return;
+
+    const updateElapsedTime = () => {
+      const startDate = new Date(session_start);
+      const now = new Date();
+      const totalSeconds = differenceInSeconds(now, startDate);
+
+      const hours = Math.floor(totalSeconds / 3600);
+      const minutes = Math.floor((totalSeconds % 3600) / 60);
+      const seconds = totalSeconds % 60;
+
+      setElapsedTime(
+        `${String(hours).padStart(2, "0")}:${String(minutes).padStart(
+          2,
+          "0"
+        )}:${String(seconds).padStart(2, "0")}`
+      );
+    };
+
+    // Update immediately and then every second
+    updateElapsedTime();
+    const interval = setInterval(updateElapsedTime, 1000);
+
+    return () => clearInterval(interval);
+  }, [session_start, has_ongoing_session]);
+
   return (
     <div className="d-flex flex-row w-100">
       <div className="flex-column text-center w-100 justify-content-center align-items-center">
@@ -70,7 +106,9 @@ function GetLabels(behavior: string) {
         <p>Behavior: {behavior}</p>
       </div>
       <div className="d-flex w-100 text-center bg-primary justify-content-center align-items-center">
-        <p>Time Elapsed: asdasd</p>
+        <p>
+          Time Elapsed: {has_ongoing_session ? elapsedTime : "Detection Paused"}
+        </p>
       </div>
     </div>
   );

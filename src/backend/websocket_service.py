@@ -86,6 +86,8 @@ class WebsocketService:
             settings = self.get_updated_settings()
             # Appending cameras
             settings["cameras"] = self.disdrive_model.available_cameras
+            # Appending start session time
+            settings["session_start"] = self.disdrive_model.log_manager.session_start
 
             # Send settings to client
             print(
@@ -119,6 +121,8 @@ class WebsocketService:
         settings = self.database_queries.get_settings()
         # Appending cameras
         settings["cameras"] = self.disdrive_model.available_cameras
+        # Appending start session time
+        settings["session_start"] = self.disdrive_model.log_manager.session_start
 
         return settings
 

@@ -10,6 +10,8 @@ interface DisdriveContextType {
   setCameras: (value: number[]) => void;
   camera_id: number;
   setSelectedCamera: (value: number) => void;
+  session_start: string;
+  setSessionStart: (value: string) => void;
 }
 
 const DisdriveContext = createContext<DisdriveContextType | undefined>(
@@ -25,6 +27,7 @@ export const DisdriveProvider = ({
   const [has_ongoing_session, setHasOngoingSession] = useState(true);
   const [cameras, setCameras] = useState<number[]>([]);
   const [camera_id, setSelectedCamera] = useState<number>(0);
+  const [session_start, setSessionStart] = useState<string>("");
 
   const ws = useRef<WebSocket | null>(null); // Store WebSocket instance
 
@@ -43,6 +46,7 @@ export const DisdriveProvider = ({
         setHasOngoingSession(data.has_ongoing_session);
         setCameras(data.cameras);
         setSelectedCamera(data.camera_id);
+        setSessionStart(data.session_start);
       } catch (error) {
         console.error("⚠️ Error parsing WebSocket message:", error);
       }
@@ -113,6 +117,8 @@ export const DisdriveProvider = ({
         setCameras,
         camera_id,
         setSelectedCamera,
+        session_start,
+        setSessionStart,
       }}
     >
       {children}
