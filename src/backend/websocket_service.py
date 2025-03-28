@@ -116,7 +116,11 @@ class WebsocketService:
 
     def get_updated_settings(self):
         """Retrieves current settings from database"""
-        return self.database_queries.get_settings()
+        settings = self.database_queries.get_settings()
+        # Appending cameras
+        settings["cameras"] = self.disdrive_model.available_cameras
+
+        return settings
 
     async def broadcast_settings(self):
         """Broadcast current settings to all connected Disdrive App clients"""

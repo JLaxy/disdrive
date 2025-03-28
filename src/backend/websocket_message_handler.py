@@ -30,6 +30,9 @@ class MessageHandler:
             action = msg_data.get('action')
             data = msg_data.get('data', {})
 
+            print(f"WEBSOCKETMESSAGEHANDLER action: {action}")
+            print(f"WEBSOCKETMESSAGEHANDLER data: {data} type: {type(data)}")
+
             # checks if action is not empty
             if not action:
                 return {
@@ -169,8 +172,16 @@ class MessageHandler:
             Response with camera update status
         """
         try:
+            data = json.loads(data)
+
+            print(f"WEBSOCKETMESSAGEHANDLER data: {data} type: {type(data)}")
+
             camera_id = data.get('camera_id')
-            if not camera_id:
+
+            print(f"WEBSOCKETMESSAGEHANDLER camera_id: {camera_id}")
+
+            if camera_id == None:
+                print("NOT?!?!?!?!??!!??!")
                 return {
                     'status': 'error',
                     'message': 'No camera ID provided'
@@ -186,6 +197,7 @@ class MessageHandler:
                 'message': f'Camera updated to {camera_id}'
             }
         except Exception as e:
+            print(f"ERROR!! {e}")
             return {
                 'status': 'error',
                 'message': f'Failed to update camera: {str(e)}'

@@ -8,7 +8,7 @@ interface DisdriveContextType {
   sendMessage: (value: Record<string, string>) => void;
   cameras: number[];
   setCameras: (value: number[]) => void;
-  selected_camera: number;
+  camera_id: number;
   setSelectedCamera: (value: number) => void;
 }
 
@@ -24,7 +24,7 @@ export const DisdriveProvider = ({
   const [is_logging, setIsLogging] = useState(true);
   const [has_ongoing_session, setHasOngoingSession] = useState(true);
   const [cameras, setCameras] = useState<number[]>([]);
-  const [selected_camera, setSelectedCamera] = useState<number>(0);
+  const [camera_id, setSelectedCamera] = useState<number>(0);
 
   const ws = useRef<WebSocket | null>(null); // Store WebSocket instance
 
@@ -42,6 +42,7 @@ export const DisdriveProvider = ({
         setIsLogging(data.is_logging);
         setHasOngoingSession(data.has_ongoing_session);
         setCameras(data.cameras);
+        setSelectedCamera(data.camera_id);
       } catch (error) {
         console.error("⚠️ Error parsing WebSocket message:", error);
       }
@@ -65,7 +66,7 @@ export const DisdriveProvider = ({
 
   // Function to send messages to the backend
   const sendMessage = (data: Record<string, string>) => {
-    console.log(`sending ${data} to server...`);
+    console.log(`sending ${JSON.stringify(data)} to server...`);
     try {
       if (ws.current && ws.current.readyState === WebSocket.OPEN) {
         // Send to backend
@@ -92,6 +93,9 @@ export const DisdriveProvider = ({
       case "stop_session":
         setHasOngoingSession(false);
         break;
+      case "update_camera":
+        setSelectedCamera(JSON.parse(data.data).camera_id);
+        break;
       default:
         console.warn("🚫 Invalid action:", data.action);
     }
@@ -107,7 +111,7 @@ export const DisdriveProvider = ({
         sendMessage,
         cameras,
         setCameras,
-        selected_camera,
+        camera_id,
         setSelectedCamera,
       }}
     >

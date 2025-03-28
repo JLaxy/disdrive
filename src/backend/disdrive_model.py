@@ -41,13 +41,20 @@ class DisdriveModel:
         # Camera-related attributes
         self.available_cameras = self.detect_cameras()
 
-        print(self.available_cameras)
+        print(f"Available cameras: {self.available_cameras}")
         self.current_camera_index = 0
         self.cap = None
 
-        # Open the first detected camera by default
-        if self.available_cameras:
+        saved_camera = self.get_selected_camera_saved()
+
+        # If no saved camera or saved camera is available
+        if saved_camera == None or (saved_camera not in self.available_cameras):
+            print(
+                f"DISDRIVE_MODEL: Saved camera with index {saved_camera} not available! opening nearest available camera...")
+            # Open first available camera
             self.open_camera(self.available_cameras[0])
+        else:
+            self.open_camera(saved_camera)
 
     def detect_cameras(self):
         """
@@ -67,6 +74,9 @@ class DisdriveModel:
 
         return available_cameras
 
+    def get_selected_camera_saved(self):
+        return self.database_queries.get_settings()["camera_id"]
+
     def open_camera(self, camera_index):
         """
         Open a specific camera by its index.
@@ -78,6 +88,8 @@ class DisdriveModel:
         if self.cap is not None:
             self.cap.release()
 
+        print(f"DISDRIVE_MODEL: opening camera with index {camera_index}")
+
         # Open new camera
         self.cap = cv2.VideoCapture(camera_index)
         self.current_camera_index = camera_index
@@ -86,6 +98,9 @@ class DisdriveModel:
         if not self.cap.isOpened():
             print(f"❌ Unable to open camera with index {camera_index}!")
             self.current_camera_index = None
+        else:
+            # Update opened camera
+            self.database_queries.update_setting("camera_id", camera_index)
 
     def update_session_status(self):
         """Updates the session status"""
