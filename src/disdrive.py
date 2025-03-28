@@ -8,7 +8,6 @@ import sys
 
 _PATH_TO_DB = "./database/disdrive_db.db"
 _WEBSERVER_PATH = "./web_server"
-_SETTINGS = {}
 
 
 async def main():

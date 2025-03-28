@@ -38,8 +38,54 @@ class DisdriveModel:
         self.database_queries = database_queries
         self.update_session_status()
 
-        # TODO: Pass camera ID then open that
-        self.open_camera()
+        # Camera-related attributes
+        self.available_cameras = self.detect_cameras()
+
+        print(self.available_cameras)
+        self.current_camera_index = 0
+        self.cap = None
+
+        # Open the first detected camera by default
+        if self.available_cameras:
+            self.open_camera(self.available_cameras[0])
+
+    def detect_cameras(self):
+        """
+        Detect available cameras on the system.
+
+        Returns:
+        list: A list of dictionaries containing camera information
+        """
+        available_cameras = []
+        max_cameras_to_check = 5  # Limit the number of cameras to check
+
+        for index in range(max_cameras_to_check):
+            cap = cv2.VideoCapture(index)
+            if cap.isOpened():
+                available_cameras.append(index)
+                cap.release()
+
+        return available_cameras
+
+    def open_camera(self, camera_index):
+        """
+        Open a specific camera by its index.
+
+        Args:
+        camera_index (int): Index of the camera to open
+        """
+        # Release existing camera if open
+        if self.cap is not None:
+            self.cap.release()
+
+        # Open new camera
+        self.cap = cv2.VideoCapture(camera_index)
+        self.current_camera_index = camera_index
+
+        # If cannot open camera, print error
+        if not self.cap.isOpened():
+            print(f"❌ Unable to open camera with index {camera_index}!")
+            self.current_camera_index = None
 
     def update_session_status(self):
         """Updates the session status"""
@@ -94,11 +140,3 @@ class DisdriveModel:
             # Update shared state for all clients to access
             self.latest_detection_data["behavior"] = behavior
             await asyncio.sleep(0.01)  # Prevent busy-waiting
-
-    def open_camera(self):
-        """Opens camera"""
-        self.cap = cv2.VideoCapture(0)
-        # If cannot open camera, exit
-        if not self.cap.isOpened():
-            print("❌ Unable to open camera!")
-            exit()

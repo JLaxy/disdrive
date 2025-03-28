@@ -1,8 +1,10 @@
 import React, { useState } from "react";
 import { Dropdown } from "react-bootstrap";
+import { useDisdriveContext } from "../contexts/DisdriveContext";
 
 const CameraDropDown: React.FC = () => {
   const [selected, setSelected] = useState<string>("Select an option");
+  const { cameras } = useDisdriveContext();
 
   const handleSelect = (eventKey: string | null) => {
     if (eventKey) {
@@ -21,8 +23,11 @@ const CameraDropDown: React.FC = () => {
       </Dropdown.Toggle>
 
       <Dropdown.Menu>
-        <Dropdown.Item eventKey="Front View">Front View</Dropdown.Item>
-        <Dropdown.Item eventKey="Side View">Side View</Dropdown.Item>
+        {cameras.map((camera) => (
+          <Dropdown.Item eventKey={`Camera ${camera}`}>
+            Camera {camera}
+          </Dropdown.Item>
+        ))}
       </Dropdown.Menu>
     </Dropdown>
   );

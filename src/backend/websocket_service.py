@@ -84,6 +84,8 @@ class WebsocketService:
 
             # Get updated settings
             settings = self.get_updated_settings()
+            # Appending cameras
+            settings["cameras"] = self.disdrive_model.available_cameras
 
             # Send settings to client
             print(
