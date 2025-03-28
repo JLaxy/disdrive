@@ -1,22 +1,15 @@
 import { Button, Card, Col, Container, Form, Row } from "react-bootstrap";
 import { useNavigate } from "react-router";
 import CameraDropDown from "../components/CameraDropDown";
-import { useState } from "react";
+import { useDisdriveContext } from "../contexts/DisdriveContext";
 
 function SettingsScreen() {
   // Checkbox state
-  const [toDistractAlarm, setDistractAlarm] = useState(false);
-  const [toLogging, setLogging] = useState(false);
   return (
     <Container className="bg-warning min-vh-100 d-flex align-items-center justify-content-center">
       <Card className="gap-2 p-5 w-75">
         <h2 className="mb-4">Settings</h2>
-        {GetCheckBox("dist-alarm", "Distraction Alarm", toDistractAlarm, (e) =>
-          setDistractAlarm(e.target.checked)
-        )}
-        {GetCheckBox("logging", "Enable Logging", toLogging, (e) =>
-          setLogging(e.target.checked)
-        )}
+        {GetCheckBox("logging", "Enable Logging")}
         <CameraDropDown />
         {GetButtons()}
       </Card>
@@ -24,15 +17,16 @@ function SettingsScreen() {
   );
 }
 
-function GetCheckBox(
-  id: string,
-  checkBoxText: string,
-  checked: boolean,
-  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void
-) {
+function GetCheckBox(id: string, checkBoxText: string) {
+  const { is_logging, sendMessage } = useDisdriveContext();
+
   return (
     <Form.Check type="checkbox" id={id}>
-      <Form.Check.Input type="checkbox" checked={checked} onChange={onChange} />
+      <Form.Check.Input
+        type="checkbox"
+        checked={is_logging}
+        onChange={() => sendMessage({ action: "toggle_logging" })}
+      />
       <Form.Check.Label className="fw-semibold">
         {checkBoxText}
       </Form.Check.Label>
