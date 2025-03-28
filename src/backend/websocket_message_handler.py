@@ -30,6 +30,16 @@ class MessageHandler:
             action = msg_data.get('action')
             data = msg_data.get('data', {})
 
+            # Ensure data is a dictionary
+            if isinstance(data, str):
+                try:
+                    data = json.loads(data)
+                except json.JSONDecodeError:
+                    return {
+                        'status': 'error',
+                        'message': 'Invalid data format'
+                    }
+
             print(f"WEBSOCKETMESSAGEHANDLER action: {action}")
             print(f"WEBSOCKETMESSAGEHANDLER data: {data} type: {type(data)}")
 
@@ -54,8 +64,12 @@ class MessageHandler:
 
             # If handler is valid, call it with the data
             if handler:
-                # Call handler
-                response = handler(data, websocket_service)
+                # For update_camera, use await
+                if action == 'update_camera':
+                    response = await handler(data, websocket_service)
+                else:
+                    response = handler(data, websocket_service)
+
                 # Broadcast settings change to clients
                 asyncio.create_task(websocket_service.broadcast_settings())
                 return response
@@ -161,7 +175,7 @@ class MessageHandler:
                 'message': f'Failed to stop session: {str(e)}'
             }
 
-    def update_camera(self, data: Dict[str, Any], websocket_service) -> Dict[str, Any]:
+    async def update_camera(self, data: Dict[str, Any], websocket_service) -> Dict[str, Any]:
         """
         Update camera settings
 
@@ -172,30 +186,28 @@ class MessageHandler:
             Response with camera update status
         """
         try:
-            data = json.loads(data)
-
-            print(f"WEBSOCKETMESSAGEHANDLER data: {data} type: {type(data)}")
+            print("WEBSOCKETMESSAGEHANDLER: updating camera...")
 
             camera_id = data.get('camera_id')
 
-            print(f"WEBSOCKETMESSAGEHANDLER camera_id: {camera_id}")
-
-            if camera_id == None:
-                print("NOT?!?!?!?!??!!??!")
+            if camera_id is None:
                 return {
                     'status': 'error',
                     'message': 'No camera ID provided'
                 }
 
+            # Convert camera_id to int if it's a string
+            camera_id = int(camera_id)
+
             print(f'Updating camera to: {camera_id}')
 
-            # Update camera setting
+            # Explicitly change camera in the Disdrive Model
+            camera_change_result = await self.disdrive_model.change_camera(camera_id)
+
+            # Set has_ongoing_session to False
             self.database_queries.update_setting('camera_id', camera_id)
 
-            return {
-                'status': 'success',
-                'message': f'Camera updated to {camera_id}'
-            }
+            return camera_change_result
         except Exception as e:
             print(f"ERROR!! {e}")
             return {

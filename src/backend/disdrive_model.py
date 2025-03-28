@@ -47,6 +47,8 @@ class DisdriveModel:
 
         saved_camera = self.get_selected_camera_saved()
 
+        self._detection_loop_task = None
+
         # If no saved camera or saved camera is available
         if saved_camera == None or (saved_camera not in self.available_cameras):
             print(
@@ -123,35 +125,96 @@ class DisdriveModel:
     async def detection_loop(self):
         """Responsible for detecting behavior of driver"""
         print("Starting Detection...")
-        while True:
-            ret, frame = self.cap.read()
-            if not ret:
-                continue
 
-            # Encode frame to base64 for transmission
-            _, buffer = cv2.imencode('.jpg', frame)
-            frame_bytes = base64.b64encode(buffer).decode('utf-8')
-            self.latest_detection_data["frame"] = frame_bytes
+        try:
+            while True:
 
-            # If to not detect, skip detection
-            if not self.has_ongoing_session:
-                self.latest_detection_data["behavior"] = "Detection Paused"
+                # Check if task will be cancelled
+                if asyncio.current_task().cancelled():
+                    print("Detection loop cancelled")
+                    break
+
+                ret, frame = self.cap.read()
+                if not ret:
+                    print("Failed to capture frame")
+                    # Optionally, add a short delay or break
+                    await asyncio.sleep(0.1)
+                    continue
+
+                # Encode frame to base64 for transmission
+                _, buffer = cv2.imencode('.jpg', frame)
+                frame_bytes = base64.b64encode(buffer).decode('utf-8')
+                self.latest_detection_data["frame"] = frame_bytes
+
+                # If to not detect, skip detection
+                if not self.has_ongoing_session:
+                    self.latest_detection_data["behavior"] = "Detection Paused"
+                    await asyncio.sleep(0.01)  # Prevent busy-waiting
+                    continue
+
+                # Extract features using CLIP encoder
+                feature = self.extract_features(frame)
+                self.frame_buffer.append(feature)
+
+                behavior = "Detecting..."
+                if len(self.frame_buffer) == 20:
+                    with torch.no_grad():
+                        sequence_tensor = torch.stack(
+                            list(self.frame_buffer)).unsqueeze(0)
+                        output = self.model(sequence_tensor)
+                        output = torch.argmax(output, dim=1).item()
+                        behavior = _BEHAVIOR_LABEL[output]
+
+                # Update shared state for all clients to access
+                self.latest_detection_data["behavior"] = behavior
                 await asyncio.sleep(0.01)  # Prevent busy-waiting
-                continue
 
-            # Extract features using CLIP encoder
-            feature = self.extract_features(frame)
-            self.frame_buffer.append(feature)
+        except asyncio.CancelledError:
+            print("Detection loop was cancelled")
+        except Exception as e:
+            print(f"Error in detection loop: {e}")
+        finally:
+            # Ensure camera is released
+            if self.cap is not None:
+                self.cap.release()
+                self.cap = None
 
-            behavior = "Detecting..."
-            if len(self.frame_buffer) == 20:
-                with torch.no_grad():
-                    sequence_tensor = torch.stack(
-                        list(self.frame_buffer)).unsqueeze(0)
-                    output = self.model(sequence_tensor)
-                    output = torch.argmax(output, dim=1).item()
-                    behavior = _BEHAVIOR_LABEL[output]
+    async def change_camera(self, camera_id):
+        """Changes camera used by the model safely"""
+        try:
+            if camera_id not in self.available_cameras:
+                raise ValueError(
+                    f"Camera {camera_id} not in available cameras")
 
-            # Update shared state for all clients to access
-            self.latest_detection_data["behavior"] = behavior
-            await asyncio.sleep(0.01)  # Prevent busy-waiting
+            # Cancel existing detection loop if running
+            if hasattr(self, '_detection_loop_task') and self._detection_loop_task and not self._detection_loop_task.done():
+                print("Cancelling existing detection loop...")
+                self._detection_loop_task.cancel()
+                try:
+                    await self._detection_loop_task
+                except asyncio.CancelledError:
+                    print("Previous detection loop cancelled successfully")
+
+            # Release existing camera if open
+            if self.cap is not None:
+                self.cap.release()
+
+            self.cap = cv2.VideoCapture(camera_id)
+
+            # Validate new camera capture
+            if not self.cap.isOpened():
+                raise RuntimeError(f"Failed to open camera {camera_id}")
+
+            self.frame_buffer.clear()
+
+            # Update current camera index
+            self.current_camera_index = camera_id
+
+            # Restart loop
+            self._detection_loop_task = asyncio.create_task(
+                self.detection_loop())
+
+            print(f"Successfully changed to camera {camera_id}")
+
+        except Exception as e:
+            print(f"Error changing camera: {e}")
