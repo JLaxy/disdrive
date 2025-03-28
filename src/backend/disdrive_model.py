@@ -5,6 +5,10 @@ import base64
 from collections import deque
 from frame_sequences.hybrid_model import HybridModel
 from PIL import Image
+from backend.database_queries import DatabaseQueries
+from playsound import playsound
+import time
+import threading
 
 _TRAINED_MODEL_SAVE_PATH = "./saved_models/disdrive_model.pth"
 _WEBSERVER_PATH = "./web_server"
@@ -51,9 +55,15 @@ class DisdriveModel:
                 processed_frame).squeeze(0).to(torch.float32)
 
         return features
+    
+    def play_alert_sound(self):
+        """Plays alert sound"""
+        threading.Thread(target=playsound, args=("./src/alert.mp3",), daemon=True).start()
 
     async def detection_loop(self):
         """Responsible for detecting behavior of driver"""
+        global last_alert_time # Alert time counter
+
         print("Starting Detection...")
         while True:
             ret, frame = self.cap.read()
@@ -83,6 +93,15 @@ class DisdriveModel:
                     output = self.model(sequence_tensor)
                     output = torch.argmax(output, dim=1).item()
                     behavior = _BEHAVIOR_LABEL[output]
+                    
+                    # Cooldown for alert sound
+                    if 'last_alert_time' not in globals():
+                        last_alert_time = 0
+                    current_time = time.time()
+                    # Alert function
+                    if behavior == "Drinking" and (current_time - last_alert_time) >= 1:
+                        self.play_alert_sound()
+                        last_alert_time = current_time
 
             # Update shared state for all clients to access
             self.latest_detection_data["behavior"] = behavior
