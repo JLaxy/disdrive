@@ -35,6 +35,20 @@ class DatabaseQueries:
         """Auto start session on app start"""
         self.update_setting('has_ongoing_session', True)
 
+    def log_new_session(self, date: str):
+        """Logs new session on database; returns session ID"""
+        print(f"logging date: {date} type: {type(date)}")
+
+        self.db_manager.insert(
+            "INSERT INTO sessions (session_start) VALUES (?)", (date,))
+
+        return self.db_manager.fetch_one("SELECT * FROM sessions WHERE session_start = :session_start", {"session_start": f"{date}"})[0]
+
+    def log_end_session(self, end: str, session_id: str):
+        """Ends existing session on database"""
+        self.db_manager.update(
+            "UPDATE sessions SET session_end = :session_end WHERE session_id = :session_id", {"session_end": f"{end}", "session_id": session_id})
+
     def update_setting(self, key: str, value: Any):
         """
         Update a single setting in the database

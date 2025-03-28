@@ -3,6 +3,7 @@ import torch
 import asyncio
 import base64
 from collections import deque
+from backend.log_manager import LogManager
 from frame_sequences.hybrid_model import HybridModel
 from PIL import Image
 from backend.database_queries import DatabaseQueries
@@ -36,6 +37,7 @@ class DisdriveModel:
         self.latest_detection_data = {
             "frame": None, "behavior": "Detecting..."}
         self.database_queries = database_queries
+        self.log_manager = LogManager(self.database_queries)
         self.update_session_status()
 
         # Camera-related attributes
@@ -149,8 +151,16 @@ class DisdriveModel:
                 # If to not detect, skip detection
                 if not self.has_ongoing_session:
                     self.latest_detection_data["behavior"] = "Detection Paused"
+
+                    if self.log_manager.has_session:
+                        self.log_manager.end_session()
+
                     await asyncio.sleep(0.01)  # Prevent busy-waiting
                     continue
+
+                # If still not started, then start
+                if not self.log_manager.has_session:
+                    self.log_manager.start_session()
 
                 # Extract features using CLIP encoder
                 feature = self.extract_features(frame)
@@ -167,6 +177,7 @@ class DisdriveModel:
 
                 # Update shared state for all clients to access
                 self.latest_detection_data["behavior"] = behavior
+                # self.log_manager.log_behavior(behavior)
                 await asyncio.sleep(0.01)  # Prevent busy-waiting
 
         except asyncio.CancelledError:
