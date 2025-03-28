@@ -5,6 +5,8 @@ import asyncio
 import subprocess
 import signal
 import sys
+from playsound import playsound
+import threading
 
 _PATH_TO_DB = "./database/disdrive_db.db"
 _WEBSERVER_PATH = "./web_server"
@@ -37,6 +39,9 @@ async def main():
     # Start Frontend
     frontend_process = start_frontend()
 
+    #Startup sound
+    threading.Thread(target=playsound, args=("./src/startup.mp3",), daemon=True).start()
+
     try:
         # Wait for all tasks
         await asyncio.gather(
@@ -45,8 +50,10 @@ async def main():
             livefeed_socket_task
         )
     except asyncio.CancelledError:
+        threading.Thread(target=playsound, args=("./src/error detected.mp3",), daemon=True).start()
         print("Tasks were cancelled")
     except Exception as e:
+        threading.Thread(target=playsound, args=("./src/error detected.mp3",), daemon=True).start()
         print(f"Unexpected error: {e}")
     finally:
         # Cleanup
