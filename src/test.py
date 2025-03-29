@@ -8,7 +8,7 @@ from collections import deque
 from PIL import Image
 
 _TRAINED_MODEL_SAVE_PATH = "./saved_models/disdrive_model.pth"
-_DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+_DEVICE = "cpu" if torch.cuda.is_available() else "cpu"
 _BEHAVIOR_LABEL = {
     0: "Safe Driving",  # Safe Driving
     1: "Texting Right",  # Texting Right

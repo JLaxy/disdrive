@@ -6,7 +6,7 @@ import { useDisdriveContext } from "../contexts/DisdriveContext";
 function SettingsScreen() {
   // Checkbox state
   return (
-    <Container className="bg-warning min-vh-100 d-flex align-items-center justify-content-center">
+    <Container className=" min-vh-100 d-flex align-items-center justify-content-center">
       <Card className="gap-2 p-5 w-75">
         <h2 className="mb-4">Settings</h2>
         {GetCheckBox("logging", "Enable Logging")}
@@ -50,8 +50,7 @@ function GetButton(buttonType: string, buttonText: string) {
 function GetButtons() {
   return (
     <Row className="g-2 pt-3">
-      <Col>{GetButton("danger", "Go Back")}</Col>
-      <Col>{GetButton("success", "Save")}</Col>
+      <Col>{GetButton("primary", "Go Back")}</Col>
     </Row>
   );
 }

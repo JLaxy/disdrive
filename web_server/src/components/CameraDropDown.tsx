@@ -17,7 +17,7 @@ const CameraDropDown: React.FC = () => {
   return (
     <Dropdown onSelect={handleSelect}>
       <Dropdown.Toggle
-        variant="primary"
+        variant="secondary"
         id="dropdown-basic"
         className="w-100 text-start justify-content-between d-flex align-items-center"
       >

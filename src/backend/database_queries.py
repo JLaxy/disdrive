@@ -1,5 +1,6 @@
 from typing import Any
 from backend.database_manager import DatabaseManager
+from datetime import datetime
 
 
 class DatabaseQueries:
@@ -39,8 +40,8 @@ class DatabaseQueries:
         """Logs new session on database; returns session ID"""
         print(f"logging date: {date} type: {type(date)}")
 
-        self.db_manager.insert(
-            "INSERT INTO sessions (session_start) VALUES (?)", (date,))
+        query = "INSERT INTO sessions (session_start) VALUES (?)"
+        self.db_manager.insert(query, (date,))
 
         return self.db_manager.fetch_one("SELECT * FROM sessions WHERE session_start = :session_start", {"session_start": f"{date}"})[0]
 
@@ -73,3 +74,8 @@ class DatabaseQueries:
 
         # Execute the update
         self.db_manager.update(query, (value,))
+
+    def log_behavior(self, behavior_id: int, session_id: int, behavior_time_start: datetime, behavior_time_end: datetime):
+        query = f"INSERT INTO logged_behaviors (behavior_id, session_id, behavior_time_start, behavior_time_end) VALUES (?, ?, ?, ?)"
+        self.db_manager.insert(
+            query, (behavior_id, session_id, behavior_time_start, behavior_time_end))

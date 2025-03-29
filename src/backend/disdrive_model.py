@@ -9,8 +9,7 @@ from PIL import Image
 from backend.database_queries import DatabaseQueries
 
 _TRAINED_MODEL_SAVE_PATH = "./saved_models/disdrive_model.pth"
-_WEBSERVER_PATH = "./web_server"
-_DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+_DEVICE = "cpu" if torch.cuda.is_available() else "cpu"
 _BEHAVIOR_LABEL = {
     0: "Safe Driving",
     1: "Texting",
@@ -175,9 +174,14 @@ class DisdriveModel:
                         output = torch.argmax(output, dim=1).item()
                         behavior = _BEHAVIOR_LABEL[output]
 
+                # If behavior changed from previous behavior
+                if self.latest_detection_data["behavior"] != behavior:
+                    self.log_manager.end_behavior()
+                    # store behavior start
+                    self.log_manager.new_behavior_started(behavior)
+
                 # Update shared state for all clients to access
                 self.latest_detection_data["behavior"] = behavior
-                # self.log_manager.log_behavior(behavior)
                 await asyncio.sleep(0.01)  # Prevent busy-waiting
 
         except asyncio.CancelledError:

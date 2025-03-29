@@ -10,7 +10,7 @@ import PIL
 """Hybrid Model Settings"""
 _MODEL = "ViT-B/16"  # 224x224
 # Automatically changes to GPU if available
-_DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+_DEVICE = "cpu" if torch.cuda.is_available() else "cpu"
 """Number of Distracted Driving Behaviors"""
 _NUM_OF_CLASSES = 8
 
