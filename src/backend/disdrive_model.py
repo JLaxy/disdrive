@@ -399,7 +399,7 @@ class DisdriveModel:
                 self.cap = None
 
             # Shutdown executor
-            self.executor.shutdown(wait=False)
+            self.restart_feature_extraction()
 
     async def change_camera(self, camera_id):
         """Changes camera used by the model safely"""
@@ -470,3 +470,8 @@ class DisdriveModel:
 
         except Exception as e:
             print(f"Error changing camera: {e}")
+
+    def restart_feature_extraction(self):
+        if self.executor:
+            self.executor.shutdown(wait=True)  # Ensure it is fully shut down
+        self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
