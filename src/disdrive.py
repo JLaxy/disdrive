@@ -60,7 +60,7 @@ def start_frontend():
     try:
         print("🚀 Starting React frontend...")
         return subprocess.Popen(
-            ["npm", "run", "dev"],
+            "npm run dev",
             cwd=_WEBSERVER_PATH,
             shell=True
         )

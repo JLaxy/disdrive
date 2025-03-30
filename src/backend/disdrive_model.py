@@ -13,7 +13,7 @@ import concurrent.futures
 
 # Fix device selection - CORRECTED
 _TRAINED_MODEL_SAVE_PATH = "./saved_models/disdrive_model.pth"
-_DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+_DEVICE = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
 _BEHAVIOR_LABEL = {
     0: "Safe Driving",
     1: "Texting",
@@ -360,9 +360,9 @@ class DisdriveModel:
 
                         # Print inference time
                         inference_time = time.time() - inference_start
-                        if self.frame_count % 30 == 0:  # Print only occasionally
-                            print(
-                                f"Behavior inference took: {inference_time:.4f} seconds")
+                        # if self.frame_count % 30 == 0:  # Print only occasionally
+                        #     print(
+                        #         f"Behavior inference took: {inference_time:.4f} seconds; Behavior: {new_behavior}")
 
                         # If we got a new behavior, update
                         if behavior == "Detecting..." or new_behavior != behavior:
