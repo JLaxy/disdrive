@@ -12,11 +12,13 @@ interface DisdriveContextType {
   setSelectedCamera: (value: number) => void;
   session_start: string;
   setSessionStart: (value: string) => void;
+  camera_view: string; // Added for camera view
+  setCameraView: (value: string) => void; // Added setter for camera view
 }
 
 const DisdriveContext = createContext<DisdriveContextType | undefined>(
   undefined
-); // or define a type for better safety
+);
 
 export const DisdriveProvider = ({
   children,
@@ -28,8 +30,9 @@ export const DisdriveProvider = ({
   const [cameras, setCameras] = useState<number[]>([]);
   const [camera_id, setSelectedCamera] = useState<number>(0);
   const [session_start, setSessionStart] = useState<string>("");
+  const [camera_view, setCameraView] = useState<string>("Front"); // Default to "Front"
 
-  const ws = useRef<WebSocket | null>(null); // Store WebSocket instance
+  const ws = useRef<WebSocket | null>(null);
 
   useEffect(() => {
     ws.current = new WebSocket(`ws://${window.location.hostname}:8766`);
@@ -47,6 +50,7 @@ export const DisdriveProvider = ({
         setCameras(data.cameras);
         setSelectedCamera(data.camera_id);
         setSessionStart(data.session_start);
+        if (data.camera_view) setCameraView(data.camera_view); // Sync camera_view
       } catch (error) {
         console.error("⚠️ Error parsing WebSocket message:", error);
       }
@@ -68,14 +72,11 @@ export const DisdriveProvider = ({
     };
   }, []);
 
-  // Function to send messages to the backend
   const sendMessage = (data: Record<string, string>) => {
     console.log(`sending ${JSON.stringify(data)} to server...`);
     try {
       if (ws.current && ws.current.readyState === WebSocket.OPEN) {
-        // Send to backend
         ws.current.send(JSON.stringify(data));
-        // If no errors, sync data with the frontend
         handleChange(data);
       } else {
         console.warn("🚫 WebSocket is not open. Unable to send message.");
@@ -86,7 +87,6 @@ export const DisdriveProvider = ({
   };
 
   const handleChange = (data: Record<string, string>) => {
-    // Syncs data with the backend
     switch (data.action) {
       case "toggle_logging":
         setIsLogging(is_logging ? false : true);
@@ -99,6 +99,9 @@ export const DisdriveProvider = ({
         break;
       case "update_camera":
         setSelectedCamera(JSON.parse(data.data).camera_id);
+        break;
+      case "update_camera_view": // Added for camera view
+        setCameraView(JSON.parse(data.data).camera_view);
         break;
       default:
         console.warn("🚫 Invalid action:", data.action);
@@ -119,6 +122,8 @@ export const DisdriveProvider = ({
         setSelectedCamera,
         session_start,
         setSessionStart,
+        camera_view, // Added for camera view
+        setCameraView, // Added setter for camera view
       }}
     >
       {children}
@@ -126,7 +131,6 @@ export const DisdriveProvider = ({
   );
 };
 
-// Custom hook (optional but recommended)
 export const useDisdriveContext = () => {
   const context = useContext(DisdriveContext);
   if (!context) {

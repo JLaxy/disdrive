@@ -1,6 +1,7 @@
 import { Button, Card, Col, Container, Form, Row } from "react-bootstrap";
 import { useNavigate } from "react-router";
 import CameraDropDown from "../components/CameraDropDown";
+import ViewDropDown from "../components/ViewDropDown";
 import { useDisdriveContext } from "../contexts/DisdriveContext";
 
 function SettingsScreen() {
@@ -11,7 +12,7 @@ function SettingsScreen() {
         <h2 className="mb-4">Settings</h2>
         {GetCheckBox("logging", "Enable Logging")}
         <CameraDropDown />
-        <CameraDropDown />
+        <ViewDropDown />
         {GetButtons()}
       </Card>
     </Container>

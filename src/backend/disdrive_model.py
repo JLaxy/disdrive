@@ -11,6 +11,8 @@ from backend.database_queries import DatabaseQueries
 import threading
 import concurrent.futures
 import multiprocessing
+import time
+from playsound import playsound
 
 # Fix device selection - CORRECTED
 _TRAINED_MODEL_SAVE_PATH = "./saved_models/disdrive_model.pth"
@@ -281,8 +283,15 @@ class DisdriveModel:
             print(f"Error processing frame buffer: {e}")
             return "Error"
 
+    #Alert threading
+    #def play_alert_sound(self):
+    #    """Plays alert sound"""
+    #    threading.Threaad(target=playsound, args=("./src/assets/alert.mp3",), daemon=True).start()
+
     async def detection_loop(self):
         """Responsible for detecting behavior of driver with optimized processing"""
+    #    global last_alert_time #Alert time counter
+
         print("Starting Detection...")
         self.fps_start_time = asyncio.get_event_loop().time()
         self.frame_count = 0
@@ -380,6 +389,12 @@ class DisdriveModel:
                     # Update behavior if changed
                     if new_behavior != "Detecting..." and new_behavior != behavior:
                         behavior = new_behavior
+                        
+                        #Alert function
+                #        if behavior != "Safe Driving" and (current_time - last_alert_time) >=1 :
+                #            self.play_alert_sound()
+                #            last_alert_time = current_time
+
                         # Log behavior change
                         self.log_manager.end_behavior()
                         self.log_manager.new_behavior_started(behavior)
@@ -487,3 +502,24 @@ class DisdriveModel:
             self.executor.shutdown(wait=False)  # Less blocking shutdown
             self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=_MAX_WORKERS)
             print(f"Executor pool restarted with {_MAX_WORKERS} workers")
+
+    # Model path update depending on camera view
+    async def update_model_path(self, model_path: str):
+        """
+        Update the model path and reload the model.
+        Args:
+            model_path (str): The new path to the model file.
+        """
+        try:
+            print(f"Updating model path to: {model_path}")
+            global _TRAINED_MODEL_SAVE_PATH
+            _TRAINED_MODEL_SAVE_PATH = model_path
+
+            # Reload the model with the new path
+            self.model.load_state_dict(torch.load(
+                _TRAINED_MODEL_SAVE_PATH, map_location=_DEVICE))
+            self.model.to(_DEVICE)
+            self.model.eval()
+            print("Model reloaded successfully.")
+        except Exception as e:
+            print(f"Error updating model path: {e}")
