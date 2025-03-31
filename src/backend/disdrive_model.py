@@ -8,7 +8,7 @@ from frame_sequences.hybrid_model import HybridModel
 from PIL import Image
 from backend.database_queries import DatabaseQueries
 
-_TRAINED_MODEL_SAVE_PATH = "./saved_models/disdrive_model.pth"
+_TRAINED_MODEL_SAVE_PATH = "./disdrive/saved_models/disdrive_model.pth"
 _DEVICE = "cpu" if torch.cuda.is_available() else "cpu"
 _BEHAVIOR_LABEL = {
     0: "Safe Driving",

@@ -4,6 +4,7 @@ import { createBrowserRouter, RouterProvider } from "react-router";
 import "bootstrap/dist/css/bootstrap.min.css";
 import SettingsScreen from "./screens/SettingsScreen";
 import LogsScreen from "./screens/LogsScreen";
+import DetailedLogs from "./screens/DetailedLogs";
 import SessionScreen from "./screens/SessionScreen";
 import { DisdriveProvider } from "./contexts/DisdriveContext";
 import { StrictMode } from "react";
@@ -12,6 +13,7 @@ const router = createBrowserRouter([
   { path: "/", element: <LandingScreen /> },
   { path: "/session", element: <SessionScreen /> },
   { path: "/logs", element: <LogsScreen /> },
+  { path: "/logs/:id", element: <DetailedLogs /> },
   { path: "/settings", element: <SettingsScreen /> },
 ]);
 

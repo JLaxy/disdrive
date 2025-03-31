@@ -46,7 +46,7 @@ const LiveFeed: React.FC = memo(() => {
   }, [location.pathname]); // Runs when route changes
 
   return (
-    <div className="d-flex flex-column text-center bg-white w-100">
+    <div className="d-flex flex-column text-center text-white w-100">
       {imageSrc ? (
         <img src={imageSrc} alt="Live Feed" className="img-fluid mx-auto" />
       ) : (
