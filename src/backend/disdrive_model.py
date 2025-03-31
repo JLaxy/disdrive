@@ -10,10 +10,11 @@ from PIL import Image
 from backend.database_queries import DatabaseQueries
 import threading
 import concurrent.futures
+import multiprocessing
 
 # Fix device selection - CORRECTED
 _TRAINED_MODEL_SAVE_PATH = "./saved_models/disdrive_model.pth"
-_DEVICE = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
+_DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 _BEHAVIOR_LABEL = {
     0: "Safe Driving",
     1: "Texting",
@@ -25,47 +26,53 @@ _BEHAVIOR_LABEL = {
     7: "Look Behind",
 }
 
-# Optimized configuration for performance
+# Optimized configuration for ROCM/APU performance
 _FRAME_SKIP = 1  # Process every frame for smoother detection
-_FRAME_WIDTH = 224  # Resize width before processing
-_FRAME_HEIGHT = 224  # Resize height before processing
-_BUFFER_SIZE = 20  # Reduced from 20 to 10 frames for faster prediction
-_SLIDING_WINDOW_STEP = 20  # Slide window by this many frames for frequent updates
+_FRAME_WIDTH = 224  # Standard size for model input
+_FRAME_HEIGHT = 224  # Standard size for model input
+_BUFFER_SIZE = 10  # Frames to analyze
+_SLIDING_WINDOW_STEP = 1  # Slide window by this many frames
+_MAX_WORKERS = max(4, multiprocessing.cpu_count() - 2)  # Use more CPU cores
+_FEATURE_QUEUE_SIZE = 20  # Larger queue size
+_FRAME_QUEUE_SIZE = 20  # Larger queue size
 
 
 class DisdriveModel:
     """Handles all functionalities related to the Machine Learning Model"""
 
     def __init__(self, database_queries: DatabaseQueries):
-        print(f"Using device: {_DEVICE}")
+        print(f"Using device: {_DEVICE} with {_MAX_WORKERS} workers")
         self.model = HybridModel()
         self.model.load_state_dict(torch.load(
             _TRAINED_MODEL_SAVE_PATH, map_location=_DEVICE))
         self.model.to(_DEVICE)
         self.model.eval()
 
-        # Enable CUDA optimizations if available
+        # Enable optimizations for ROCM
         if _DEVICE == "cuda":
+            # These settings help ROCM performance
             torch.backends.cudnn.benchmark = True
+            torch.backends.cudnn.deterministic = False
+            if hasattr(torch, 'set_float32_matmul_precision'):
+                torch.set_float32_matmul_precision('high')
 
-        # Create thread pool for feature extraction
-        self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
+        # Create larger thread pool for feature extraction
+        self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=_MAX_WORKERS)
 
         # Preload and cache preprocessor transforms
         if hasattr(self.model, 'clip_model') and hasattr(self.model, 'preprocessor'):
             print("Warming up CLIP model...")
-            # Warmup the model with a dummy inference
-            dummy_input = torch.zeros(1, 3, 224, 224).to(_DEVICE)
+            # Warmup with batch processing to initialize ROCM kernels
+            dummy_batch = torch.zeros(4, 3, 224, 224).to(_DEVICE)
             with torch.no_grad():
-                self.model.clip_model.encode_image(dummy_input)
-                # Run a full model inference with dummy data
-                dummy_sequence = torch.zeros(1, _BUFFER_SIZE, 512).to(_DEVICE)
+                self.model.clip_model.encode_image(dummy_batch)
+                dummy_sequence = torch.zeros(2, _BUFFER_SIZE, 512).to(_DEVICE)
                 self.model(dummy_sequence)
 
-        # Use deque with reduced buffer size
+        # Use deque with set buffer size
         self.frame_buffer = deque(maxlen=_BUFFER_SIZE)
         self.latest_detection_data = {
-            "frame": None, "behavior": "Detecting..."}
+            "frame": None, "behavior": "Detecting...", "fps": "0.0"}
         self.database_queries = database_queries
         self.log_manager = LogManager(self.database_queries)
         self.update_session_status()
@@ -90,15 +97,18 @@ class DisdriveModel:
         self.feature_cache = {}
         self.cache_hits = 0
         self.cache_misses = 0
-        self.MAX_CACHE_SIZE = 100
+        self.MAX_CACHE_SIZE = 500  # Increased cache size
 
-        # Threading for feature extraction
-        self.feature_queue = asyncio.Queue(maxsize=10)  # Increased queue size
-        self.frame_queue = asyncio.Queue(maxsize=10)
+        # Threading for feature extraction - use larger queues
+        self.feature_queue = asyncio.Queue(maxsize=_FEATURE_QUEUE_SIZE)
+        self.frame_queue = asyncio.Queue(maxsize=_FRAME_QUEUE_SIZE)
+
+        # Add semaphore to control concurrent feature extractions
+        self.feature_semaphore = asyncio.Semaphore(_MAX_WORKERS)
 
         saved_camera = self.get_selected_camera_saved()
         self._detection_loop_task = None
-        self._feature_extraction_task = None
+        self._feature_extraction_tasks = []
 
         # If no saved camera or saved camera is available
         if saved_camera == None or (saved_camera not in self.available_cameras):
@@ -132,7 +142,7 @@ class DisdriveModel:
 
     def open_camera(self, camera_index):
         """
-        Open a specific camera by its index.
+        Open a specific camera by its index with optimized settings.
 
         Args:
         camera_index (int): Index of the camera to open
@@ -147,12 +157,21 @@ class DisdriveModel:
         self.cap = cv2.VideoCapture(camera_index)
 
         # Set camera properties for better performance
-        # self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)  # Lower resolution capture
-        # self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-        self.cap.set(cv2.CAP_PROP_FPS, 30)  # Request 30fps if supported
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+        
+        # Attempt to set higher FPS - many cameras support more than 30
+        self.cap.set(cv2.CAP_PROP_FPS, 60)  
+        
+        # Get actual camera properties
+        actual_width = self.cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+        actual_height = self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+        actual_fps = self.cap.get(cv2.CAP_PROP_FPS)
+        
+        print(f"Camera configured with: {actual_width}x{actual_height} @ {actual_fps}fps")
 
-        # Set buffer size to 1 for lower latency
-        self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        # Set buffer size to 2 for better throughput but still low latency
+        self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 2)
 
         self.current_camera_index = camera_index
 
@@ -170,26 +189,23 @@ class DisdriveModel:
             "has_ongoing_session"])
 
     def extract_features(self, frame):
-        """Extracts features of retrieved frame from camera"""
-        # Start timing the process
-        start_time = time.time()
-
-        # Resize frame to improve performance
-        resized_frame = cv2.resize(frame, (_FRAME_WIDTH, _FRAME_HEIGHT))
-
+        """Extracts features of retrieved frame from camera with optimized processing"""
         # Generate a simple hash for the frame to check cache
-        frame_hash = hash(resized_frame.tobytes())
+        # Use a more efficient hashing method
+        frame_hash = hash(frame.tobytes()[:1000])  # Hash just part of the frame for speed
 
         # Check if we've already computed features for this frame
         if frame_hash in self.feature_cache:
             self.cache_hits += 1
-            if self.cache_hits % 50 == 0:
-                print(
-                    f"Feature cache hits: {self.cache_hits}, misses: {self.cache_misses}")
+            if self.cache_hits % 100 == 0:
+                print(f"Feature cache hits: {self.cache_hits}, misses: {self.cache_misses}")
             return self.feature_cache[frame_hash]
 
         self.cache_misses += 1
 
+        # Resize frame to expected model input size
+        resized_frame = cv2.resize(frame, (_FRAME_WIDTH, _FRAME_HEIGHT))
+        
         # Convert to RGB for PIL
         processed_frame = cv2.cvtColor(resized_frame, cv2.COLOR_BGR2RGB)
         processed_frame = Image.fromarray(processed_frame)
@@ -202,48 +218,71 @@ class DisdriveModel:
             features = self.model.clip_model.encode_image(
                 processed_frame).squeeze(0).to(torch.float32)
 
-        # Store in cache
+        # Store in cache - use LRU approach
         if len(self.feature_cache) >= self.MAX_CACHE_SIZE:
-            # Remove a random key if cache is full
+            # Remove oldest key if cache is full
             self.feature_cache.pop(next(iter(self.feature_cache)))
 
         self.feature_cache[frame_hash] = features
-
-        # Print time taken for feature extraction
-        extraction_time = time.time() - start_time
-        if self.cache_misses % 50 == 0:
-            print(f"Feature extraction took: {extraction_time:.4f} seconds")
-
         return features
 
-    async def feature_extraction_worker(self):
+    async def feature_extraction_worker(self, worker_id):
         """Worker to extract features asynchronously"""
         try:
+            print(f"Feature extraction worker {worker_id} started")
             while True:
                 if asyncio.current_task().cancelled():
-                    print("Feature extraction worker cancelled")
+                    print(f"Feature extraction worker {worker_id} cancelled")
                     break
 
-                # Get frame from queue
-                frame = await self.frame_queue.get()
+                # Get frame from queue with short timeout
+                try:
+                    frame = await asyncio.wait_for(self.frame_queue.get(), 0.5)
+                except asyncio.TimeoutError:
+                    continue
 
                 # Use ThreadPoolExecutor for CPU-bound operations
-                loop = asyncio.get_event_loop()
-                feature = await loop.run_in_executor(self.executor, self.extract_features, frame)
+                async with self.feature_semaphore:
+                    loop = asyncio.get_event_loop()
+                    feature = await loop.run_in_executor(self.executor, self.extract_features, frame)
 
                 # Put feature in queue for main loop
-                await self.feature_queue.put(feature)
+                try:
+                    await asyncio.wait_for(self.feature_queue.put(feature), 0.1)
+                except asyncio.TimeoutError:
+                    # If feature queue is full, we can skip this frame
+                    pass
 
                 # Mark task as done
                 self.frame_queue.task_done()
 
         except asyncio.CancelledError:
-            print("Feature extraction worker was cancelled")
+            print(f"Feature extraction worker {worker_id} was cancelled")
         except Exception as e:
-            print(f"Error in feature extraction worker: {e}")
+            print(f"Error in feature extraction worker {worker_id}: {e}")
+
+    async def process_frame_buffer(self):
+        """Process the current frame buffer and predict behavior"""
+        try:
+            # Only process if we have enough frames
+            if len(self.frame_buffer) < _BUFFER_SIZE:
+                return "Detecting..."  # Not enough frames yet
+
+            with torch.no_grad():
+                # Create tensor from buffer
+                buffer_list = list(self.frame_buffer)
+                sequence_tensor = torch.stack(buffer_list).unsqueeze(0).to(_DEVICE)
+
+                # Run model inference
+                output = self.model(sequence_tensor)
+                output = torch.argmax(output, dim=1).item()
+                return _BEHAVIOR_LABEL[output]
+        except Exception as e:
+            print(f"Error processing frame buffer: {e}")
+            return "Error"
 
     async def detection_loop(self):
-        """Responsible for detecting behavior of driver"""
+        """Responsible for detecting behavior of driver with optimized processing"""
         print("Starting Detection...")
         self.fps_start_time = asyncio.get_event_loop().time()
         self.frame_count = 0
@@ -251,46 +290,42 @@ class DisdriveModel:
         self.window_slide_counter = 0
 
         # Start multiple feature extraction workers
-        extraction_workers = []
+        self._feature_extraction_tasks = []
+        for i in range(_MAX_WORKERS):
+            worker = asyncio.create_task(self.feature_extraction_worker(i))
+            self._feature_extraction_tasks.append(worker)
 
         try:
-            # Start multiple feature extraction workers for parallel processing
-            for _ in range(2):  # Create 2 workers
-                worker = asyncio.create_task(self.feature_extraction_worker())
-                extraction_workers.append(worker)
-
             while True:
                 # Check if task will be cancelled
                 if asyncio.current_task().cancelled():
                     print("Detection loop cancelled")
                     break
 
+                # Read frame with timeout to prevent blocking
                 ret, frame = self.cap.read()
                 if not ret:
                     print("Failed to capture frame")
-                    await asyncio.sleep(0.1)
+                    await asyncio.sleep(0.001)  # Reduced sleep time
                     continue
 
                 # Count each successfully captured frame
                 self.frame_count += 1
 
-                # Calculate and print FPS every 3 seconds
+                # Calculate and print FPS every second
                 current_time = asyncio.get_event_loop().time()
                 elapsed_time = current_time - self.fps_start_time
 
-                if elapsed_time >= 3.0:
+                if elapsed_time >= 1.0:  # Update FPS more frequently
                     self.current_fps = self.frame_count / elapsed_time
-                    print(
-                        f"Current FPS: {self.current_fps:.2f} | Processed frames: {self.processed_frames}")
+                    print(f"Current FPS: {self.current_fps:.2f} | Processed frames: {self.processed_frames}")
                     self.frame_count = 0
                     self.processed_frames = 0
                     self.fps_start_time = current_time
 
-                # Always encode and update the visual feed for the UI
-                # Use a smaller resolution for the encoded frame
-                # display_frame = cv2.resize(frame, (320, 240))
-                _, buffer = cv2.imencode('.jpg', frame, [
-                                         cv2.IMWRITE_JPEG_QUALITY, 80])
+                # Encode frame for UI with reduced resolution for faster encoding
+                display_frame = cv2.resize(frame, (320, 240))
+                _, buffer = cv2.imencode('.jpg', display_frame, [cv2.IMWRITE_JPEG_QUALITY, 70])
                 frame_bytes = base64.b64encode(buffer).decode('utf-8')
                 self.latest_detection_data["frame"] = frame_bytes
                 self.latest_detection_data["fps"] = f"{self.current_fps:.1f}"
@@ -302,83 +337,58 @@ class DisdriveModel:
                     if self.log_manager.has_session:
                         self.log_manager.end_session()
 
-                    await asyncio.sleep(0.01)
+                    # Reduced sleep time
+                    await asyncio.sleep(0.001)
                     continue
 
                 # If still not started, then start
                 if not self.log_manager.has_session:
                     self.log_manager.start_session()
 
-                # Process only every Nth frame for performance
+                # Process frame for detection
                 if self.frame_skip_counter % _FRAME_SKIP == 0:
                     # Queue the frame for feature extraction
                     if not self.frame_queue.full():
-                        await self.frame_queue.put(frame.copy())
-                        self.processed_frames += 1
+                        # Use try/except with timeout to avoid blocking
+                        try:
+                            await asyncio.wait_for(self.frame_queue.put(frame.copy()), 0.01)
+                            self.processed_frames += 1
+                        except asyncio.TimeoutError:
+                            pass  # Skip this frame if queue is full
 
-                    # Try to get a feature from the queue
-                    try:
-                        feature = await asyncio.wait_for(self.feature_queue.get(), 0.01)
-                        self.frame_buffer.append(feature)
-                        self.feature_queue.task_done()
-                        self.window_slide_counter += 1
-                    except (asyncio.QueueEmpty, asyncio.TimeoutError):
-                        # No features available yet, continue
-                        pass
+                    # Try to get features from the queue - more aggressive
+                    for _ in range(min(3, self.feature_queue.qsize())):  # Process up to 3 features per cycle
+                        try:
+                            feature = await asyncio.wait_for(self.feature_queue.get(), 0.001)
+                            self.frame_buffer.append(feature)
+                            self.feature_queue.task_done()
+                            self.window_slide_counter += 1
+                        except (asyncio.QueueEmpty, asyncio.TimeoutError):
+                            break
 
                 self.frame_skip_counter += 1
 
-                # Process the frame buffer for behavior prediction
-                # IMPORTANT CHANGE: Sliding window approach to make predictions more frequent
-                behavior = self.latest_detection_data.get(
-                    "behavior", "Detecting...")
+                # Get current behavior
+                behavior = self.latest_detection_data.get("behavior", "Detecting...")
 
-                # Predict whenever buffer is full OR we've added enough new frames to slide the window
-                if len(self.frame_buffer) >= _BUFFER_SIZE or (len(self.frame_buffer) > _BUFFER_SIZE // 2 and
-                                                              self.window_slide_counter >= _SLIDING_WINDOW_STEP):
+                # Predict whenever buffer is full or we've added enough new frames
+                if (len(self.frame_buffer) >= _BUFFER_SIZE and 
+                    self.window_slide_counter >= _SLIDING_WINDOW_STEP):
                     self.window_slide_counter = 0  # Reset counter
-
-                    with torch.no_grad():
-                        # Start timing inference
-                        inference_start = time.time()
-
-                        # Create tensor from buffer
-                        buffer_list = list(self.frame_buffer)
-                        if len(buffer_list) < _BUFFER_SIZE:
-                            # Pad with last frame if needed
-                            last_frame = buffer_list[-1]
-                            while len(buffer_list) < _BUFFER_SIZE:
-                                buffer_list.append(last_frame)
-
-                        sequence_tensor = torch.stack(
-                            buffer_list).unsqueeze(0).to(_DEVICE)
-
-                        # Run model inference
-                        output = self.model(sequence_tensor)
-                        output = torch.argmax(output, dim=1).item()
-                        new_behavior = _BEHAVIOR_LABEL[output]
-
-                        # Print inference time
-                        inference_time = time.time() - inference_start
-                        # if self.frame_count % 30 == 0:  # Print only occasionally
-                        #     print(
-                        #         f"Behavior inference took: {inference_time:.4f} seconds; Behavior: {new_behavior}")
-
-                        # If we got a new behavior, update
-                        if behavior == "Detecting..." or new_behavior != behavior:
-                            behavior = new_behavior
-
-                # If behavior changed from previous behavior
-                if self.latest_detection_data["behavior"] != behavior:
-                    self.log_manager.end_behavior()
-                    # store behavior start
-                    self.log_manager.new_behavior_started(behavior)
+                    new_behavior = await self.process_frame_buffer()
+                    
+                    # Update behavior if changed
+                    if new_behavior != "Detecting..." and new_behavior != behavior:
+                        behavior = new_behavior
+                        # Log behavior change
+                        self.log_manager.end_behavior()
+                        self.log_manager.new_behavior_started(behavior)
 
                 # Update shared state for all clients to access
                 self.latest_detection_data["behavior"] = behavior
 
-                # Sleep to prevent busy-waiting but keep it minimal
-                await asyncio.sleep(0.005)
+                # Use a very minimal sleep to yield control
+                await asyncio.sleep(0.001)
 
         except asyncio.CancelledError:
             print("Detection loop was cancelled")
@@ -386,7 +396,7 @@ class DisdriveModel:
             print(f"Error in detection loop: {e}")
         finally:
             # Cancel feature extraction workers
-            for worker in extraction_workers:
+            for worker in self._feature_extraction_tasks:
                 worker.cancel()
                 try:
                     await worker
@@ -438,11 +448,11 @@ class DisdriveModel:
 
             self.cap = cv2.VideoCapture(camera_id)
 
-            # Set camera properties for better performance
+            # Set camera properties for better performance - try higher FPS
             self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
             self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-            self.cap.set(cv2.CAP_PROP_FPS, 30)
-            self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)  # Minimize buffering
+            self.cap.set(cv2.CAP_PROP_FPS, 60)  # Try for 60fps
+            self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 2)
 
             # Validate new camera capture
             if not self.cap.isOpened():
@@ -473,5 +483,7 @@ class DisdriveModel:
 
     def restart_feature_extraction(self):
         if self.executor:
-            self.executor.shutdown(wait=True)  # Ensure it is fully shut down
-        self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
+            print("Shutting down executor pool...")
+            self.executor.shutdown(wait=False)  # Less blocking shutdown
+            self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=_MAX_WORKERS)
+            print(f"Executor pool restarted with {_MAX_WORKERS} workers")

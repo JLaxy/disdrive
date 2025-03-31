@@ -11,6 +11,7 @@ function SettingsScreen() {
         <h2 className="mb-4">Settings</h2>
         {GetCheckBox("logging", "Enable Logging")}
         <CameraDropDown />
+        <CameraDropDown />
         {GetButtons()}
       </Card>
     </Container>
