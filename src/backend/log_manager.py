@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from fastapi import FastAPI, WebSocket
 from backend.database_queries import DatabaseQueries
@@ -27,6 +27,8 @@ class LogManager:
         self.behavior = None  # behavior_id of current behavior of driver
         self.behavior_start = None  # Datatime behavior has started
         self.current_session_id = None
+
+        self.delete_old_logs()
 
         self.connected_clients: List[WebSocket] = []
         self.logs_api = None
@@ -151,3 +153,20 @@ class LogManager:
 
         self.behavior = None
         self.behavior_start = None
+
+    def delete_old_logs(self):
+            """Deletes logs older than 15 days from the logged_behaviors table."""
+            print("Checking for logs older than 15 days to delete...")
+    
+            # Calculate cutoff date
+            now = datetime.now()
+            cutoff_15_days = now - timedelta(days=15)
+            cutoff_15_days_str = cutoff_15_days.strftime("%Y-%m-%d %H:%M:%S")  # Format as full timestamp
+    
+            print(f"Current system date and time: {now}")
+            print(f"Cutoff for 15 days: {cutoff_15_days_str}")
+    
+            # Execute deletion query
+            print("Executing deletion query for logs older than 15 days...")
+            self.database_queries.delete_logs_from_multiple_tables(["logged_behaviors"], cutoff_15_days_str)
+            print("Deletion query for 15 days executed.")
