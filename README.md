@@ -1,23 +1,24 @@
 FILES TO PULL (START/STOP/SHUTDOWN)
 
--SessionsScreen.tsx
+- SessionsScreen.tsx
 
--DisDriveContext.tsx
+- DisDriveContext.tsx
 
--websocket_message_handler.py
+- websocket_message_handler.py
 
--session_manager.py
+- session_manager.py
 
--LandingScreen.tsx
+- LandingScreen.tsx
+
 
 FUNCTIONS USED:
 
--start_session ()
+- start_session ()
 
--resume_operations ()
+- resume_operations ()
 
--stop_session ()
+- stop_session ()
 
--pause_operations ()
+- pause_operations ()
 
--shutdown_system ()
+- shutdown_system ()
