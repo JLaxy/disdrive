@@ -1,6 +1,7 @@
 from backend.disdrive_model import DisdriveModel
 from backend.websocket_service import WebsocketService
 from backend.database_queries import DatabaseQueries
+from backend.log_manager import LogManager
 import asyncio
 import subprocess
 import signal
@@ -21,6 +22,9 @@ async def main():
     # Load Model
     hybrid_model = DisdriveModel(database_query)
 
+    # Initialize LogManager to delete old logs
+    log_manager = LogManager(database_query)
+    
     # Create WebSocket Service
     websocket_service = WebsocketService(
         hybrid_model, database_query)
