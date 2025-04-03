@@ -23,6 +23,7 @@ class WebsocketService:
         # Flags to control server shutdown
         self.livefeed_server = None
         self.disdrive_app_server = None
+        self.logs_server = None
 
     async def start_livefeed_socket(self, ip: str, port: int):
         """Opens Live Feed socket"""
@@ -48,6 +49,18 @@ class WebsocketService:
         finally:
             if self.disdrive_app_server:
                 self.disdrive_app_server.close()
+
+    async def start_logs_socket(self, ip: str, port: int):
+        """Opens Logs socket"""
+        try:
+            self.logs_server = await websockets.serve(self.logs_socket, ip, port)
+            print(f"✅ Logs WebSocket Server started on ws://{ip}:{port}")
+            await self.logs_server.wait_closed()
+        except Exception as e:
+            print(f"❌ Logs WebSocket Server error: {e}")
+        finally:
+            if self.logs_server:
+                self.logs_server.close()
 
     async def livefeed_socket(self, client):
         """Socket connection for the Live Feed on Session Screen"""
@@ -108,6 +121,9 @@ class WebsocketService:
             print(
                 f"Client {client_address} disconnected from Disdrive Frontend. Cleaning up...")
             self.disdrive_app_clients.discard(client)
+
+    def logs_socket(self):
+        pass
 
     def stop_servers(self):
         """Gracefully stop WebSocket servers"""

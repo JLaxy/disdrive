@@ -8,8 +8,8 @@ import sys
 from playsound import playsound
 import threading
 
-_PATH_TO_DB = "./disdrive/database/disdrive_db.db"
-_WEBSERVER_PATH = "./disdrive/web_server"
+_PATH_TO_DB = "./database/disdrive_db.db"
+_WEBSERVER_PATH = "./web_server"
 
 
 async def main():
@@ -65,7 +65,7 @@ def start_frontend():
     try:
         print("🚀 Starting React frontend...")
         return subprocess.Popen(
-            ["npm run dev"],
+            "npm run dev",
             cwd=_WEBSERVER_PATH,
             shell=True
         )
