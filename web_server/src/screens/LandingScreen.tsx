@@ -81,20 +81,6 @@ function GetHeader() {
 }
 
 function LandingPage() {
-  const { sendMessage } = useDisdriveContext();
-
-  useEffect(() => {
-    const handleKeyPress = (event: KeyboardEvent) => {
-      if (event.key === "C" || event.key === "c") {
-        console.log("Shutdown key pressed");
-        sendMessage({ action: "shutdown_system" });
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyPress);
-    return () => window.removeEventListener("keydown", handleKeyPress);
-  }, [sendMessage]);
-
   return (
     <Container className="d-flex flex-column gap-2 min-vh-100 justify-content-center align-items-center">
       {GetHeader()}
