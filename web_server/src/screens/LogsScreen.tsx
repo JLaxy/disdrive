@@ -1,70 +1,66 @@
-import { ArrowLeftIcon } from "@primer/octicons-react";
-import React from "react";
-import { Card, Col, Container, Row } from "react-bootstrap";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-
-// Define types
-interface DistractionLog {
-  time: string;
-  type: string;
-  duration: string;
-}
+import { Card, Col, Container, Row } from "react-bootstrap";
+import { ArrowLeftIcon } from "@primer/octicons-react";
 
 interface Log {
-  id: number;
-  timestamp: string;
+  session_id: number;
+  session_start: string;
   session_end: string | null;
-  distractions: DistractionLog[];
 }
 
-// Hardcoded sample data
-const sampleLogs: Log[] = [
-  {
-    id: 1,
-    timestamp: "2024-04-01T09:00:00",
-    session_end: "2024-04-01T10:30:00",
-    distractions: [
-      { time: "5:45PM", type: "Drinking", duration: "1 Minute" },
-      { time: "6:00PM", type: "Texting", duration: "2 Minutes" }
-    ]
-  },
-  {
-    id: 2,
-    timestamp: "2024-04-01T11:00:00",
-    session_end: "2024-04-01T12:15:00",
-    distractions: []
-  },
-  {
-    id: 3,
-    timestamp: "2024-04-01T14:00:00",
-    session_end: null,
-    distractions: []
-  }
-];
-
 function LogsScreen() {
+  const [logs, setLogs] = useState<Log[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
 
-  // Format date for display
+  useEffect(() => {
+    const ws = new WebSocket("ws://localhost:8000/ws/logs");
+
+    ws.onopen = () => {
+      console.log("Connected to logs WebSocket");
+      setIsLoading(false);
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const data: Log[] = JSON.parse(event.data);
+        setLogs(data);
+      } catch (error) {
+        console.error("Failed to parse WebSocket message:", error);
+      }
+    };
+
+    ws.onclose = () => {
+      console.log("WebSocket connection closed");
+    };
+
+    return () => ws.close(); // Close WebSocket when component unmounts
+  }, []);
+
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit'
+    return new Date(dateString).toLocaleString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
     });
   };
+
+  if (isLoading) {
+    return <div className="text-center mt-4">Loading logs...</div>;
+  }
 
   return (
     <Container className="mt-4">
       <Row className="mb-4">
         <Col xs={1}>
-          <ArrowLeftIcon 
-            size={24} 
-            onClick={() => navigate("/")} 
-            style={{ cursor: 'pointer' }} 
+          <ArrowLeftIcon
+            size={24}
+            onClick={() => navigate("/")}
+            style={{ cursor: "pointer" }}
           />
         </Col>
         <Col className="text-center">
@@ -72,27 +68,30 @@ function LogsScreen() {
         </Col>
       </Row>
 
-      {sampleLogs.map((log) => (
+      {logs.map((log) => (
         <Card
-          key={log.id}
+          key={log.session_id}
           className="mb-3"
-          onClick={() => navigate(`/logs/${log.id}`)}
+          onClick={() => navigate(`/logs/${log.session_id}`)}  // Redirects to DetailedLogs with session ID
           style={{
             cursor: "pointer",
             transition: "all 0.3s ease",
-            borderLeft: `5px solid ${log.session_end ? '#198754' : '#0d6efd'}`,
+            borderLeft: `5px solid ${log.session_end ? "#198754" : "#0d6efd"}`,
           }}
         >
           <Card.Body>
-            <Card.Title>Session #{log.id}</Card.Title>
+            <Card.Title>Session #{log.session_id}</Card.Title>
             <Card.Text>
-              <strong>Started:</strong> {formatDate(log.timestamp)}<br />
-              <strong>Status:</strong> {log.session_end ? 
+              <strong>Started:</strong> {formatDate(log.session_start)}
+              <br />
+              <strong>Status:</strong>{" "}
+              {log.session_end ? (
                 <span className="text-success">
                   Completed ({formatDate(log.session_end)})
-                </span> : 
+                </span>
+              ) : (
                 <span className="text-primary">Ongoing</span>
-              }
+              )}
             </Card.Text>
           </Card.Body>
         </Card>
