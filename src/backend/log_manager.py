@@ -155,18 +155,22 @@ class LogManager:
         self.behavior_start = None
 
     def delete_old_logs(self):
-            """Deletes logs older than 15 days from the logged_behaviors table."""
-            print("Checking for logs older than 15 days to delete...")
-    
-            # Calculate cutoff date
-            now = datetime.now()
-            cutoff_15_days = now - timedelta(days=15)
-            cutoff_15_days_str = cutoff_15_days.strftime("%Y-%m-%d %H:%M:%S")  # Format as full timestamp
-    
-            print(f"Current system date and time: {now}")
-            print(f"Cutoff for 15 days: {cutoff_15_days_str}")
-    
-            # Execute deletion query
-            print("Executing deletion query for logs older than 15 days...")
-            self.database_queries.delete_logs_from_multiple_tables(["logged_behaviors"], cutoff_15_days_str)
-            print("Deletion query for 15 days executed.")
+        """Deletes logs based on retention days setting from the logged_behaviors table."""
+        print("Checking for old logs to delete...")
+
+        # Get retention days from settings
+        settings = self.database_queries.get_settings()
+        retention_days = settings.get('retention_days', 15)  # Default to 15 if not set
+
+        # Calculate cutoff date
+        now = datetime.now()
+        cutoff_date = now - timedelta(days=retention_days)
+        cutoff_date_str = cutoff_date.strftime("%Y-%m-%d %H:%M:%S")
+
+        print(f"Current system date and time: {now}")
+        print(f"Cutoff for {retention_days} days: {cutoff_date_str}")
+
+        # Execute deletion query
+        print(f"Executing deletion query for logs older than {retention_days} days...")
+        self.database_queries.delete_logs_from_multiple_tables(["logged_behaviors"], cutoff_date_str)
+        print("Deletion query executed.")
