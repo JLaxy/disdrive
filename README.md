@@ -8,9 +8,11 @@ LandingScreen.tsx
 important functions:
 
 start_session ()
+
 resume_operations ()
 
 stop_session ()
+
 pause_operations ()
 
 shutdown_system ()
