@@ -1,3 +1,7 @@
+PULL DATABASE
+
+--------------------------------------------
+
 FILES TO PULL (START/STOP/SHUTDOWN):
 
 - SessionsScreen.tsx
@@ -26,7 +30,7 @@ FUNCTIONS USED (START/STOP/SHUTDOWN)::
 
 ---------------------------------------------------------
 
-FILES TO PULL (DELETE_LOGS-NOT DYNAMIC YET):
+FILES TO PULL (DYNAMIC):
 
 - log_manager.py
 
@@ -34,8 +38,12 @@ FILES TO PULL (DELETE_LOGS-NOT DYNAMIC YET):
 
 - disdrive.py
 
+- DisDriveContext.tsx
 
-FUNCTIONS USED (DELETE_LOGS-NOT DYNAMIC YET):
+- SettingsScreen.tsx
+
+
+FUNCTIONS USED (DYNAMIC):
 
 - self.delete_old_logs()  declaration in class LogManager
 
@@ -44,3 +52,5 @@ FUNCTIONS USED (DELETE_LOGS-NOT DYNAMIC YET):
 - def delete_logs_from_multiple_tables(self, table_names: list[str], cutoff_date: str): function from the database_queries.py for the query basis used in def delete_old_logs(self)
 
 - log_manager = LogManager(database_query) just a declaration of function in disdrive.py
+
+- added retention days function
