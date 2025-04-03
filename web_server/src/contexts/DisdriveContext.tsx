@@ -119,6 +119,21 @@ export const DisdriveProvider = ({
     };
   }, []);
 
+  // Add global keyboard event listener
+  useEffect(() => {
+    const handleGlobalKeyPress = (event: KeyboardEvent) => {
+      if (event.key === "C" || event.key === "c") {
+        console.log("Global shutdown key pressed");
+        if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+          sendMessage({ action: "shutdown_system" });
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleGlobalKeyPress);
+    return () => window.removeEventListener("keydown", handleGlobalKeyPress);
+  }, [sendMessage]);
+
   return (
     <DisdriveContext.Provider
       value={{
