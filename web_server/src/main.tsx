@@ -7,11 +7,13 @@ import LogsScreen from "./screens/LogsScreen";
 import SessionScreen from "./screens/SessionScreen";
 import { DisdriveProvider } from "./contexts/DisdriveContext";
 import { StrictMode } from "react";
+import DetailedLogs from "./screens/DetailedLogs";
 
 const router = createBrowserRouter([
   { path: "/", element: <LandingScreen /> },
   { path: "/session", element: <SessionScreen /> },
   { path: "/logs", element: <LogsScreen /> },
+  { path: "/logs/:id", element: <DetailedLogs /> },
   { path: "/settings", element: <SettingsScreen /> },
 ]);
 

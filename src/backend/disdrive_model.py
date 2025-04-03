@@ -59,7 +59,8 @@ class DisdriveModel:
                 torch.set_float32_matmul_precision('high')
 
         # Create larger thread pool for feature extraction
-        self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=_MAX_WORKERS)
+        self.executor = concurrent.futures.ThreadPoolExecutor(
+            max_workers=_MAX_WORKERS)
 
         # Preload and cache preprocessor transforms
         if hasattr(self.model, 'clip_model') and hasattr(self.model, 'preprocessor'):
@@ -161,16 +162,17 @@ class DisdriveModel:
         # Set camera properties for better performance
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-        
+
         # Attempt to set higher FPS - many cameras support more than 30
-        self.cap.set(cv2.CAP_PROP_FPS, 60)  
-        
+        self.cap.set(cv2.CAP_PROP_FPS, 60)
+
         # Get actual camera properties
         actual_width = self.cap.get(cv2.CAP_PROP_FRAME_WIDTH)
         actual_height = self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
         actual_fps = self.cap.get(cv2.CAP_PROP_FPS)
-        
-        print(f"Camera configured with: {actual_width}x{actual_height} @ {actual_fps}fps")
+
+        print(
+            f"Camera configured with: {actual_width}x{actual_height} @ {actual_fps}fps")
 
         # Set buffer size to 2 for better throughput but still low latency
         self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 2)
@@ -194,20 +196,22 @@ class DisdriveModel:
         """Extracts features of retrieved frame from camera with optimized processing"""
         # Generate a simple hash for the frame to check cache
         # Use a more efficient hashing method
-        frame_hash = hash(frame.tobytes()[:1000])  # Hash just part of the frame for speed
+        # Hash just part of the frame for speed
+        frame_hash = hash(frame.tobytes()[:1000])
 
         # Check if we've already computed features for this frame
         if frame_hash in self.feature_cache:
             self.cache_hits += 1
             if self.cache_hits % 100 == 0:
-                print(f"Feature cache hits: {self.cache_hits}, misses: {self.cache_misses}")
+                print(
+                    f"Feature cache hits: {self.cache_hits}, misses: {self.cache_misses}")
             return self.feature_cache[frame_hash]
 
         self.cache_misses += 1
 
         # Resize frame to expected model input size
         resized_frame = cv2.resize(frame, (_FRAME_WIDTH, _FRAME_HEIGHT))
-        
+
         # Convert to RGB for PIL
         processed_frame = cv2.cvtColor(resized_frame, cv2.COLOR_BGR2RGB)
         processed_frame = Image.fromarray(processed_frame)
@@ -273,7 +277,8 @@ class DisdriveModel:
             with torch.no_grad():
                 # Create tensor from buffer
                 buffer_list = list(self.frame_buffer)
-                sequence_tensor = torch.stack(buffer_list).unsqueeze(0).to(_DEVICE)
+                sequence_tensor = torch.stack(
+                    buffer_list).unsqueeze(0).to(_DEVICE)
 
                 # Run model inference
                 output = self.model(sequence_tensor)
@@ -283,8 +288,8 @@ class DisdriveModel:
             print(f"Error processing frame buffer: {e}")
             return "Error"
 
-    #Alert threading
-    #def play_alert_sound(self):
+    # Alert threading
+    # def play_alert_sound(self):
     #    """Plays alert sound"""
     #    threading.Threaad(target=playsound, args=("./src/assets/alert.mp3",), daemon=True).start()
 
@@ -327,14 +332,16 @@ class DisdriveModel:
 
                 if elapsed_time >= 1.0:  # Update FPS more frequently
                     self.current_fps = self.frame_count / elapsed_time
-                    print(f"Current FPS: {self.current_fps:.2f} | Processed frames: {self.processed_frames}")
+                    print(
+                        f"Current FPS: {self.current_fps:.2f} | Processed frames: {self.processed_frames}")
                     self.frame_count = 0
                     self.processed_frames = 0
                     self.fps_start_time = current_time
 
                 # Encode frame for UI with reduced resolution for faster encoding
                 display_frame = cv2.resize(frame, (320, 240))
-                _, buffer = cv2.imencode('.jpg', display_frame, [cv2.IMWRITE_JPEG_QUALITY, 70])
+                _, buffer = cv2.imencode('.jpg', display_frame, [
+                                         cv2.IMWRITE_JPEG_QUALITY, 70])
                 frame_bytes = base64.b64encode(buffer).decode('utf-8')
                 self.latest_detection_data["frame"] = frame_bytes
                 self.latest_detection_data["fps"] = f"{self.current_fps:.1f}"
@@ -366,7 +373,8 @@ class DisdriveModel:
                             pass  # Skip this frame if queue is full
 
                     # Try to get features from the queue - more aggressive
-                    for _ in range(min(3, self.feature_queue.qsize())):  # Process up to 3 features per cycle
+                    # Process up to 3 features per cycle
+                    for _ in range(min(3, self.feature_queue.qsize())):
                         try:
                             feature = await asyncio.wait_for(self.feature_queue.get(), 0.001)
                             self.frame_buffer.append(feature)
@@ -378,19 +386,20 @@ class DisdriveModel:
                 self.frame_skip_counter += 1
 
                 # Get current behavior
-                behavior = self.latest_detection_data.get("behavior", "Detecting...")
+                behavior = self.latest_detection_data.get(
+                    "behavior", "Detecting...")
 
                 # Predict whenever buffer is full or we've added enough new frames
-                if (len(self.frame_buffer) >= _BUFFER_SIZE and 
-                    self.window_slide_counter >= _SLIDING_WINDOW_STEP):
+                if (len(self.frame_buffer) >= _BUFFER_SIZE and
+                        self.window_slide_counter >= _SLIDING_WINDOW_STEP):
                     self.window_slide_counter = 0  # Reset counter
                     new_behavior = await self.process_frame_buffer()
-                    
+
                     # Update behavior if changed
                     if new_behavior != "Detecting..." and new_behavior != behavior:
                         behavior = new_behavior
-                        
-                        #Alert function
+
+                        # Alert function
                 #        if behavior != "Safe Driving" and (current_time - last_alert_time) >=1 :
                 #            self.play_alert_sound()
                 #            last_alert_time = current_time
@@ -500,7 +509,8 @@ class DisdriveModel:
         if self.executor:
             print("Shutting down executor pool...")
             self.executor.shutdown(wait=False)  # Less blocking shutdown
-            self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=_MAX_WORKERS)
+            self.executor = concurrent.futures.ThreadPoolExecutor(
+                max_workers=_MAX_WORKERS)
             print(f"Executor pool restarted with {_MAX_WORKERS} workers")
 
     # Model path update depending on camera view

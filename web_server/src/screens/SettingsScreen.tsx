@@ -3,17 +3,25 @@ import { useNavigate } from "react-router";
 import CameraDropDown from "../components/CameraDropDown";
 import ViewDropDown from "../components/ViewDropDown";
 import { useDisdriveContext } from "../contexts/DisdriveContext";
+import { ArrowLeftIcon } from "@primer/octicons-react";
 
 function SettingsScreen() {
+  const navigate = useNavigate();
   // Checkbox state
   return (
     <Container className=" min-vh-100 d-flex align-items-center justify-content-center">
       <Card className="gap-2 p-5 w-75">
-        <h2 className="mb-4">Settings</h2>
+        <Row>
+          <Col>
+            <ArrowLeftIcon size={24} onClick={() => navigate("/")} style={{ cursor: 'pointer' }} />
+          </Col>
+          <Col>
+            <h2 className="mb-4">Settings</h2>
+          </Col>
+        </Row>
         {GetCheckBox("logging", "Enable Logging")}
         <CameraDropDown />
         <ViewDropDown />
-        {GetButtons()}
       </Card>
     </Container>
   );
@@ -33,27 +41,6 @@ function GetCheckBox(id: string, checkBoxText: string) {
         {checkBoxText}
       </Form.Check.Label>
     </Form.Check>
-  );
-}
-
-function GetButton(buttonType: string, buttonText: string) {
-  const navigate = useNavigate();
-  return (
-    <Button
-      variant={buttonType}
-      className="w-100"
-      onClick={() => navigate("/")}
-    >
-      {buttonText}
-    </Button>
-  );
-}
-
-function GetButtons() {
-  return (
-    <Row className="g-2 pt-3">
-      <Col>{GetButton("primary", "Go Back")}</Col>
-    </Row>
   );
 }
 
