@@ -1,4 +1,4 @@
-FILES TO PULL (START/STOP/SHUTDOWN)
+FILES TO PULL (START/STOP/SHUTDOWN):
 
 - SessionsScreen.tsx
 
@@ -11,7 +11,7 @@ FILES TO PULL (START/STOP/SHUTDOWN)
 - LandingScreen.tsx
 
 
-FUNCTIONS USED:
+FUNCTIONS USED (START/STOP/SHUTDOWN)::
 
 - start_session ()
 
@@ -22,3 +22,25 @@ FUNCTIONS USED:
 - pause_operations ()
 
 - shutdown_system ()
+
+
+---------------------------------------------------------
+
+FILES TO PULL (DELETE_LOGS-NOT DYNAMIC YET):
+
+- log_manager.py
+
+- database_queries.py
+
+- disdrive.py
+
+
+FUNCTIONS USED (DELETE_LOGS-NOT DYNAMIC YET):
+
+- self.delete_old_logs()  declaration in class LogManager
+
+- def delete_old_logs(self): function for deleting logs (set temporarily to 15 days after log was added. To test, change date time of device. NOT DYNAMIC YET)
+
+- def delete_logs_from_multiple_tables(self, table_names: list[str], cutoff_date: str): function from the database_queries.py for the query basis used in def delete_old_logs(self)
+
+- log_manager = LogManager(database_query) just a declaration of function in disdrive.py
