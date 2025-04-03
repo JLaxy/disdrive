@@ -1,73 +1,71 @@
-import { Button } from "react-bootstrap";
-import LiveFeed from "../components/LiveFeed";
+import { Card, Col, Container, Form, Row, Button } from "react-bootstrap";
 import { useNavigate } from "react-router";
+import CameraDropDown from "../components/CameraDropDown";
 import { useDisdriveContext } from "../contexts/DisdriveContext";
-import { closeWebSocket } from "../utils/LiveFeedSocketService";
-import { useEffect } from "react";
+import { ArrowLeftIcon } from "@primer/octicons-react";
+import NumberSpinner from "../components/NumberSpinner";
+import { useState } from "react";
 
-function SessionScreen() {
-  const { has_ongoing_session, sendMessage } = useDisdriveContext();
-
-  useEffect(() => {
-    const handleKeyPress = (event: KeyboardEvent) => {
-      if (event.key === "A" || event.key === "a") {
-        console.log("Start Session key pressed");
-        if (!has_ongoing_session) {
-          sendMessage({ action: "start_session" });
-        }
-      } else if (event.key === "B" || event.key === "b") {
-        console.log("Stop Session key pressed");
-        if (has_ongoing_session) {
-          sendMessage({ action: "stop_session" });
-        }
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyPress);
-    return () => window.removeEventListener("keydown", handleKeyPress);
-  }, [has_ongoing_session, sendMessage]);
-
-  return (
-    <div className="d-flex flex-column min-vh-100 bg-dark container align-items-center justify-content-center gap-3">
-      <LiveFeed />
-      {GetButtons(has_ongoing_session, sendMessage)}
-    </div>
-  );
-}
-
-function GetButtons(
-  hasOngoingSession: boolean,
-  sendMessage: (arg0: Record<string, string>) => void
-) {
+function SettingsScreen() {
   const navigate = useNavigate();
+  const { settings, sendMessage } = useDisdriveContext();
+  const [days, setDays] = useState<number>(settings?.retention_days || 15);
 
-  const handleSessionToggle = () => {
-    const action = hasOngoingSession ? "stop_session" : "start_session";
-    console.log(`Sending ${action} command...`);
-    sendMessage({ action });
+  const handleSave = () => {
+    sendMessage({ 
+      action: "update_settings", 
+      data: { retention_days: days } 
+    });
   };
 
   return (
-    <div className="d-flex flex-row w-100 gap-3">
-      <Button
-        variant="secondary"
-        className="w-100 btn-lg"
-        onClick={() => {
-          closeWebSocket();
-          navigate("/");
-        }}
-      >
-        Go Back
-      </Button>
-      <Button
-        variant={hasOngoingSession ? "danger" : "success"}
-        className="btn-lg w-100"
-        onClick={handleSessionToggle}
-      >
-        {hasOngoingSession ? "Stop Session" : "Start Session"}
-      </Button>
-    </div>
+    <Container className=" min-vh-100 d-flex align-items-center justify-content-center">
+      <Card className="gap-2 p-5 w-75">
+        <Row>
+          <Col
+            onClick={() => navigate("/")}
+            style={{
+              cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+            }}
+          >
+            <ArrowLeftIcon size={24} />
+          </Col>
+          <Col>
+            <h2 className="mb-4">Settings</h2>
+          </Col>
+        </Row>
+        {GetCheckBox("logging", "Enable Logging")}
+        <CameraDropDown />
+        <NumberSpinner days={days} setDays={setDays} />
+        <Button 
+          variant="primary" 
+          className="mt-3" 
+          onClick={handleSave}
+        >
+          Save Settings
+        </Button>
+      </Card>
+    </Container>
   );
 }
 
-export default SessionScreen;
+function GetCheckBox(id: string, checkBoxText: string) {
+  const { is_logging, sendMessage } = useDisdriveContext();
+
+  return (
+    <Form.Check type="checkbox" id={id}>
+      <Form.Check.Input
+        type="checkbox"
+        checked={is_logging}
+        onChange={() => sendMessage({ action: "toggle_logging" })}
+      />
+      <Form.Check.Label className="fw-semibold">
+        {checkBoxText}
+      </Form.Check.Label>
+    </Form.Check>
+  );
+}
+
+export default SettingsScreen;
