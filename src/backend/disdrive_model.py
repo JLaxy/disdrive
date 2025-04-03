@@ -43,6 +43,31 @@ class DisdriveModel:
     """Handles all functionalities related to the Machine Learning Model"""
 
     def __init__(self, database_queries: DatabaseQueries):
+        self._initialize_model()
+
+        self.database_queries = database_queries
+        self.log_manager = LogManager(self.database_queries)
+        self.update_session_status()
+
+        self._initialize_cameras()
+
+        self._configure_threads()
+
+        saved_camera = self.get_selected_camera_saved()
+        self._detection_loop_task = None
+        self._feature_extraction_tasks = []
+
+        # If no saved camera or saved camera is available
+        if saved_camera == None or (saved_camera not in self.available_cameras):
+            print(
+                f"DISDRIVE_MODEL: Saved camera with index {saved_camera} not available! opening nearest available camera...")
+            # Open first available camera
+            self.open_camera(self.available_cameras[0])
+        else:
+            self.open_camera(saved_camera)
+
+    def _initialize_model(self):
+        """All functions to initialize model"""
         print(f"Using device: {_DEVICE} with {_MAX_WORKERS} workers")
         self.model = HybridModel()
         self.model.load_state_dict(torch.load(
@@ -76,10 +101,9 @@ class DisdriveModel:
         self.frame_buffer = deque(maxlen=_BUFFER_SIZE)
         self.latest_detection_data = {
             "frame": None, "behavior": "Detecting...", "fps": "0.0"}
-        self.database_queries = database_queries
-        self.log_manager = LogManager(self.database_queries)
-        self.update_session_status()
 
+    def _initialize_cameras(self):
+        """Configures camera"""
         # Camera-related attributes
         self.available_cameras = self.detect_cameras()
         print(f"Available cameras: {self.available_cameras}")
@@ -96,6 +120,8 @@ class DisdriveModel:
         self.frame_skip_counter = 0
         self.window_slide_counter = 0
 
+    def _configure_threads(self):
+        """Configures threads to be ran"""
         # Create a feature cache to avoid repetitive computations
         self.feature_cache = {}
         self.cache_hits = 0
@@ -108,19 +134,6 @@ class DisdriveModel:
 
         # Add semaphore to control concurrent feature extractions
         self.feature_semaphore = asyncio.Semaphore(_MAX_WORKERS)
-
-        saved_camera = self.get_selected_camera_saved()
-        self._detection_loop_task = None
-        self._feature_extraction_tasks = []
-
-        # If no saved camera or saved camera is available
-        if saved_camera == None or (saved_camera not in self.available_cameras):
-            print(
-                f"DISDRIVE_MODEL: Saved camera with index {saved_camera} not available! opening nearest available camera...")
-            # Open first available camera
-            self.open_camera(self.available_cameras[0])
-        else:
-            self.open_camera(saved_camera)
 
     def detect_cameras(self):
         """

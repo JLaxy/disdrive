@@ -10,12 +10,15 @@ interface Log {
 }
 
 function LogsScreen() {
+  const port = "8767";
   const [logs, setLogs] = useState<Log[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
 
   useEffect(() => {
-    const ws = new WebSocket("ws://localhost:8000/ws/logs");
+    const ws = new WebSocket(
+      `ws://${window.location.hostname}:${port}/ws/logs`
+    );
 
     ws.onopen = () => {
       console.log("Connected to logs WebSocket");
@@ -72,7 +75,7 @@ function LogsScreen() {
         <Card
           key={log.session_id}
           className="mb-3"
-          onClick={() => navigate(`/logs/${log.session_id}`)}  // Redirects to DetailedLogs with session ID
+          onClick={() => navigate(`/logs/${log.session_id}`)} // Redirects to DetailedLogs with session ID
           style={{
             cursor: "pointer",
             transition: "all 0.3s ease",

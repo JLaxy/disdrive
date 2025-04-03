@@ -1,12 +1,14 @@
 import { Card, Col, Container, Form, Row } from "react-bootstrap";
 import { useNavigate } from "react-router";
 import CameraDropDown from "../components/CameraDropDown";
-import ViewDropDown from "../components/ViewDropDown";
 import { useDisdriveContext } from "../contexts/DisdriveContext";
 import { ArrowLeftIcon } from "@primer/octicons-react";
+import NumberSpinner from "../components/NumberSpinner";
+import { useState } from "react";
 
 function SettingsScreen() {
   const navigate = useNavigate();
+  const [days, setDays] = useState<number>(15);
   // Checkbox state
   return (
     <Container className=" min-vh-100 d-flex align-items-center justify-content-center">
@@ -28,7 +30,7 @@ function SettingsScreen() {
         </Row>
         {GetCheckBox("logging", "Enable Logging")}
         <CameraDropDown />
-        <ViewDropDown />
+        <NumberSpinner days={days} setDays={setDays} />
       </Card>
     </Container>
   );

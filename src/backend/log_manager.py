@@ -1,6 +1,9 @@
+import asyncio
 from datetime import datetime
+import json
 from pathlib import Path
-from fastapi import FastAPI, WebSocket
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+import uvicorn
 from backend.database_queries import DatabaseQueries
 from typing import List
 
@@ -29,12 +32,14 @@ class LogManager:
         self.current_session_id = None
 
         self.connected_clients: List[WebSocket] = []
-        self.logs_api = None
         self.configure_logs_api()
 
     def configure_logs_api(self):
         """Runs all code for configuring API for logs"""
         self.logs_api = FastAPI()
+
+        self.logs_api.add_api_websocket_route(
+            "/ws/logs", self.get_all_sessions)
 
         # Get the absolute path to the database file
         current_dir = Path(__file__).parent
@@ -46,7 +51,7 @@ class LogManager:
         await websocket.accept()
         self.connected_clients.append(websocket)
 
-    def disconnect_to_api(self, websocket: WebSocket):
+    def disconnect_from_api(self, websocket: WebSocket):
         """Disconnects client from server"""
         self.connected_clients.remove(websocket)
 
@@ -55,32 +60,43 @@ class LogManager:
         for connection in self.connected_clients:
             await connection.send_text(message)
 
-    @self.logs_api.websocket("/ws/logs")
-    async def get_all_logs(websocket: WebSocket):
-        await manager.connect(websocket)
+    async def get_all_sessions(self, websocket: WebSocket):
+        """Retrieves all sessions saved in database"""
+        await self.connect_to_api(websocket)
         try:
-            conn = sqlite3.connect(DB_PATH)
-            cursor = conn.cursor()
-            try:
-                cursor.execute("SELECT * FROM sessions ORDER BY session_start DESC")
-                rows = cursor.fetchall()
-                logs = [
-                    {
-                        'session_id': row[0],
-                        'session_start': row[1],
-                        'session_end': row[2]
-                    }
-                    for row in rows
-                ]
-                await websocket.send_text(json.dumps(logs))
-                # Keep connection alive
-                while True:
-                    await websocket.receive_text()
-            finally:
-                conn.close()
+            # Fetch from database
+            rows = self.database_queries.get_all_sessions()
+
+            # Destructure
+            logs = [
+                {
+                    'session_id': row[0],
+                    'session_start': row[1],
+                    'session_end': row[2]
+                }
+                for row in rows
+            ]
+
+            await websocket.send_text(json.dumps(logs))
+            # Keep connection alive
+            while True:
+                await websocket.receive_text()
         except WebSocketDisconnect:
-            manager.disconnect(websocket)
-            print(f"Client disconnected")
+            self.disconnect_from_api(websocket)
+
+    def start_logs_api(self, ip, port):
+        """Runs the API server for logs"""
+        try:
+            config = uvicorn.Config(self.logs_api, host=ip, port=port)
+            server = uvicorn.Server(config)
+
+            if asyncio.get_event_loop().is_running():
+                asyncio.create_task(server.serve())
+            else:
+                asyncio.run(server.serve())
+                
+        except Exception as e:
+            print(f"Failed to run Logs API server!: {e}")
 
     def get_time_now(self):
         return datetime.now().strftime(_DATETIME_FORMAT)

@@ -28,6 +28,8 @@ async def main():
     # Create tasks for detection and websockets
     detection_task = asyncio.create_task(hybrid_model.detection_loop())
 
+    hybrid_model.log_manager.start_logs_api("0.0.0.0", 8767)
+
     # Use asyncio.create_task with explicit server methods
     disdrive_socket_task = asyncio.create_task(
         websocket_service.start_disdrive_app_socket("0.0.0.0", 8766)
@@ -40,7 +42,7 @@ async def main():
     frontend_process = start_frontend()
 
     # Startup sound
-    #threading.Thread(target=playsound, args=(".src/assets/startup.mp3",), daemon=True).start()
+    # threading.Thread(target=playsound, args=(".src/assets/startup.mp3",), daemon=True).start()
 
     try:
         # Wait for all tasks

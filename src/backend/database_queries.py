@@ -79,3 +79,8 @@ class DatabaseQueries:
         query = f"INSERT INTO logged_behaviors (behavior_id, session_id, behavior_time_start, behavior_time_end) VALUES (?, ?, ?, ?)"
         self.db_manager.insert(
             query, (behavior_id, session_id, behavior_time_start, behavior_time_end))
+
+    def get_all_sessions(self):
+        """Retrieves all sessions in database"""
+        query = "SELECT * FROM sessions ORDER BY session_start DESC"
+        return self.db_manager.fetch_all(query)
