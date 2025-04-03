@@ -1,11 +1,18 @@
 import { createContext, useState, useContext, useRef, useEffect, useCallback } from "react";
 
+interface Settings {
+  is_logging: boolean;
+  camera_id: number | null;
+  has_ongoing_session: boolean;
+  retention_days: number;
+}
+
 interface DisdriveContextType {
   is_logging: boolean;
   setIsLogging: (value: boolean) => void;
   has_ongoing_session: boolean;
   setHasOngoingSession: (value: boolean) => void;
-  sendMessage: (value: Record<string, string>) => void;
+  sendMessage: (value: { action: string; data?: any }) => void;
   cameras: number[];
   setCameras: (value: number[]) => void;
   camera_id: number;
@@ -14,6 +21,7 @@ interface DisdriveContextType {
   setSessionStart: (value: string) => void;
   camera_view: string;
   setCameraView: (value: string) => void;
+  settings: Settings | null;
 }
 
 const DisdriveContext = createContext<DisdriveContextType | undefined>(
@@ -31,9 +39,10 @@ export const DisdriveProvider = ({
   const [camera_id, setSelectedCamera] = useState<number>(0);
   const [session_start, setSessionStart] = useState<string>("");
   const [camera_view, setCameraView] = useState<string>("Front");
+  const [settings, setSettings] = useState<Settings | null>(null);
   const ws = useRef<WebSocket | null>(null);
 
-  const sendMessage = useCallback((data: Record<string, string>) => {
+  const sendMessage = useCallback((data: { action: string; data?: any }) => {
     console.log(`sending ${JSON.stringify(data)} to server...`);
     try {
       if (ws.current && ws.current.readyState === WebSocket.OPEN) {
@@ -100,6 +109,7 @@ export const DisdriveProvider = ({
           if (data.settings.camera_view) {
             setCameraView(data.settings.camera_view);
           }
+          setSettings(data.settings);
         }
       } catch (error) {
         console.error("⚠️ Error parsing WebSocket message:", error);
@@ -150,6 +160,7 @@ export const DisdriveProvider = ({
         setSessionStart,
         camera_view,
         setCameraView,
+        settings,
       }}
     >
       {children}
