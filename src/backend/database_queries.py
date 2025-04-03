@@ -79,3 +79,15 @@ class DatabaseQueries:
         query = f"INSERT INTO logged_behaviors (behavior_id, session_id, behavior_time_start, behavior_time_end) VALUES (?, ?, ?, ?)"
         self.db_manager.insert(
             query, (behavior_id, session_id, behavior_time_start, behavior_time_end))
+
+    def delete_logs_from_multiple_tables(self, table_names: list[str], cutoff_date: str):
+            for table_name in table_names:
+                # Compare the full timestamp directly
+                query = f"DELETE FROM {table_name} WHERE behavior_time_start < ?"
+                try:
+                    print(f"Attempting to delete logs from table: {table_name}")
+                    print(f"Cutoff date: {cutoff_date}")
+                    self.db_manager.delete(query, (cutoff_date,))
+                    print(f"Deleted logs older than {cutoff_date} from table {table_name}")
+                except Exception as e:
+                    print(f"Error deleting logs from table {table_name}: {e}")
