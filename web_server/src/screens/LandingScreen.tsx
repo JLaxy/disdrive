@@ -1,6 +1,7 @@
-import { Button, Container, Form, Row, Col } from "react-bootstrap";
+import { Button, Container } from "react-bootstrap";
 import { useNavigate } from "react-router";
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
+import { useDisdriveContext } from "../contexts/DisdriveContext";
 
 const DarkModeToggle = () => {
   // State to track the dark mode status
@@ -48,6 +49,13 @@ function GetButton(btnVariant: string, btnText: string, btnNavigate: string) {
 }
 
 function GetButtons() {
+  const { sendMessage } = useDisdriveContext();
+
+  const handleShutdown = () => {
+    console.log("Initiating shutdown via button...");
+    sendMessage({ action: "shutdown_system" });
+  };
+
   return (
     <div className="d-flex flex-column gap-3 w-100 justify-content-center align-items-center">
       {GetButton("primary", "View Session", "/session")}
@@ -56,7 +64,7 @@ function GetButtons() {
       <Button
         variant="danger"
         className="btn-lg w-75"
-        onClick={() => alert("shutting down!")}
+        onClick={handleShutdown}
       >
         Shutdown
       </Button>
@@ -73,15 +81,22 @@ function GetHeader() {
 }
 
 function LandingPage() {
-  // Ensure the theme is applied on initial load
+  const { sendMessage } = useDisdriveContext();
+
   useEffect(() => {
-    const storedTheme = localStorage.getItem("theme") || "light";
-    document.body.dataset.bsTheme = storedTheme;
-  }, []);
+    const handleKeyPress = (event: KeyboardEvent) => {
+      if (event.key === "C" || event.key === "c") {
+        console.log("Shutdown key pressed");
+        sendMessage({ action: "shutdown_system" });
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyPress);
+    return () => window.removeEventListener("keydown", handleKeyPress);
+  }, [sendMessage]);
 
   return (
     <Container className="d-flex flex-column gap-2 min-vh-100 justify-content-center align-items-center">
-      {DarkModeToggle()}
       {GetHeader()}
       {GetButtons()}
     </Container>
