@@ -1,16 +1,21 @@
 import asyncio
 import json
+import logging
 from typing import Dict, Any
 from backend.disdrive_model import DisdriveModel
 from backend.database_queries import DatabaseQueries
+from backend.session_manager import SessionManager
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 class MessageHandler:
-    def __init__(self, disdrive_model: DisdriveModel, database_queries: DatabaseQueries):
+    def __init__(self, disdrive_model: DisdriveModel, database_queries: DatabaseQueries, session_manager: SessionManager):
         """Handles incoming WebSocket messages from clients"""
-        print("Initializing MessageHandler...")
+        logger.info("Initializing MessageHandler...")
         self.disdrive_model = disdrive_model
         self.database_queries = database_queries
+        self.session_manager = session_manager  # Use shared session manager
 
     async def process_message(self, message: str, websocket_service) -> Dict[str, Any]:
         """
@@ -30,6 +35,8 @@ class MessageHandler:
             action = msg_data.get('action')
             data = msg_data.get('data', {})
 
+            logger.info(f"Processing action: {action}")
+
             # Ensure data is a dictionary
             if isinstance(data, str):
                 try:
@@ -39,9 +46,6 @@ class MessageHandler:
                         'status': 'error',
                         'message': 'Invalid data format'
                     }
-
-            print(f"WEBSOCKETMESSAGEHANDLER action: {action}")
-            print(f"WEBSOCKETMESSAGEHANDLER data: {data} type: {type(data)}")
 
             # checks if action is not empty
             if not action:
@@ -56,7 +60,8 @@ class MessageHandler:
                 'start_session': self.start_session,
                 'stop_session': self.stop_session,
                 'update_camera': self.update_camera,
-                'toggle_logging': self.toggle_logging
+                'toggle_logging': self.toggle_logging,
+                'shutdown_system': self.shutdown_system
             }
 
             # Find and call the appropriate handler
@@ -64,14 +69,10 @@ class MessageHandler:
 
             # If handler is valid, call it with the data
             if handler:
-                # For update_camera, use await
-                if action == 'update_camera':
-                    response = await handler(data, websocket_service)
-                else:
-                    response = handler(data, websocket_service)
-
-                # Broadcast settings change to clients
-                asyncio.create_task(websocket_service.broadcast_settings())
+                # All handlers should be awaited
+                response = await handler(data, websocket_service)
+                await asyncio.create_task(websocket_service.broadcast_settings())
+                logger.info(f"Handler response: {response}")
                 return response
             else:
                 return {
@@ -85,6 +86,7 @@ class MessageHandler:
                 'message': 'Invalid JSON format'
             }
         except Exception as e:
+            logger.error(f"Error processing message: {e}")
             return {
                 'status': 'error',
                 'message': f'Unexpected error: {str(e)}'
@@ -119,101 +121,79 @@ class MessageHandler:
                 'message': f'Failed to update settings: {str(e)}'
             }
 
-    def start_session(self, data: Dict[str, Any], websocket_service) -> Dict[str, Any]:
-        """
-        Start a new detection session
-
-        Args:
-            data: Optional session configuration
-
-        Returns:
-            Response with session start status
-        """
+    async def start_session(self, data: Dict[str, Any], websocket_service) -> Dict[str, Any]:
+        """Start a new detection session"""
         try:
-            print('Starting new session MESSAGE HANDLER...')
-
-            # Set has_ongoing_session to True
-            self.database_queries.update_setting('has_ongoing_session', True)
-            # Sync with model
-            self.disdrive_model.update_session_status()
-
+            logger.info("Starting session...")
+            if await self.session_manager.resume_operations():
+                self.database_queries.update_setting('has_ongoing_session', True)
+                self.disdrive_model.update_session_status()
+                return {
+                    'status': 'success',
+                    'message': 'Session started successfully'
+                }
             return {
-                'status': 'success',
-                'message': 'Session started successfully'
+                'status': 'warning',
+                'message': 'Session was already running'
             }
         except Exception as e:
+            logger.error(f"Failed to start session: {e}")
             return {
                 'status': 'error',
                 'message': f'Failed to start session: {str(e)}'
             }
 
-    def stop_session(self, data: Dict[str, Any], websocket_service) -> Dict[str, Any]:
-        """
-        Stop the current detection session
-
-        Args:
-            data: Optional session end configuration
-
-        Returns:
-            Response with session stop status
-        """
+    async def stop_session(self, data: Dict[str, Any], websocket_service) -> Dict[str, Any]:
+        """Stop the current detection session"""
         try:
-            print('Stopping session MESSAGE HANDLER...')
-
-            # Set has_ongoing_session to False
-            self.database_queries.update_setting('has_ongoing_session', False)
-            # Sync with model
-            self.disdrive_model.update_session_status()
-
+            logger.info("Stopping session...")
+            if await self.session_manager.pause_operations():
+                self.database_queries.update_setting('has_ongoing_session', False)
+                self.disdrive_model.update_session_status()
+                return {
+                    'status': 'success',
+                    'message': 'Session stopped successfully'
+                }
             return {
-                'status': 'success',
-                'message': 'Session stopped successfully'
+                'status': 'warning',
+                'message': 'Session was already stopped'
             }
         except Exception as e:
+            logger.error(f"Failed to stop session: {e}")
             return {
                 'status': 'error',
                 'message': f'Failed to stop session: {str(e)}'
             }
 
     async def update_camera(self, data: Dict[str, Any], websocket_service) -> Dict[str, Any]:
-        """
-        Update camera settings
-
-        Args:
-            data: Camera configuration details
-
-        Returns:
-            Response with camera update status
-        """
         try:
-            print("WEBSOCKETMESSAGEHANDLER: updating camera...")
+            logger.info("Updating camera...")
+            
+            if isinstance(data, str):
+                try:
+                    data = json.loads(data)
+                except json.JSONDecodeError:
+                    return {'status': 'error', 'message': 'Invalid camera data format'}
 
             camera_id = data.get('camera_id')
-
             if camera_id is None:
-                return {
-                    'status': 'error',
-                    'message': 'No camera ID provided'
-                }
+                return {'status': 'error', 'message': 'No camera ID provided'}
 
-            # Convert camera_id to int if it's a string
             camera_id = int(camera_id)
+            logger.info(f'Updating camera to: {camera_id}')
 
-            print(f'Updating camera to: {camera_id}')
-
-            # Explicitly change camera in the Disdrive Model
-            camera_change_result = await self.disdrive_model.change_camera(camera_id)
-
-            # Set has_ongoing_session to False
+            # Change camera
+            await self.disdrive_model.change_camera(camera_id)
             self.database_queries.update_setting('camera_id', camera_id)
 
-            return camera_change_result
-        except Exception as e:
-            print(f"ERROR!! {e}")
             return {
-                'status': 'error',
-                'message': f'Failed to update camera: {str(e)}'
+                'status': 'success',
+                'message': f'Camera updated to {camera_id}',
+                'data': {'camera_id': camera_id}
             }
+        except Exception as e:
+            logger.error(f"Failed to update camera: {e}")
+            return {'status': 'error', 'message': str(e)}
 
     def toggle_logging(self, data: Dict[str, Any], websocket_service) -> Dict[str, Any]:
         """
@@ -229,7 +209,7 @@ class MessageHandler:
             # Get opposite of current settings
             is_logging = not bool(
                 websocket_service.get_updated_settings()["is_logging"])
-            print(f'Toggling logging to: {is_logging}')
+            logger.info(f'Toggling logging to: {is_logging}')
 
             # Update logging setting
             self.database_queries.update_setting('is_logging', is_logging)
@@ -239,7 +219,30 @@ class MessageHandler:
                 'message': f'Logging {"enabled" if is_logging else "disabled"}'
             }
         except Exception as e:
+            logger.error(f"Failed to toggle logging: {e}")
             return {
                 'status': 'error',
                 'message': f'Failed to toggle logging: {str(e)}'
             }
+
+    async def shutdown_system(self, data: Dict[str, Any], websocket_service) -> Dict[str, Any]:
+        """Shutdown the system"""
+        try:
+            logger.info('Initiating system shutdown...')
+            # First clean up WebSocket connections
+            await websocket_service.cleanup()
+            
+            # Then initiate shutdown
+            self.session_manager.shutdown_system()
+            
+            return {
+                'status': 'success',
+                'message': 'System shutdown initiated'
+            }
+        except Exception as e:
+            logger.error(f"Error during shutdown: {e}")
+            return {
+                'status': 'error',
+                'message': f'Failed to shutdown system: {str(e)}'
+            }
+
