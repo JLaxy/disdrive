@@ -117,31 +117,6 @@ export const DisdriveProvider = ({
     };
   }, []);
 
-  // Add global keyboard event listener
-  useEffect(() => {
-    const handleGlobalKeyPress = (event: KeyboardEvent) => {
-      if (ws.current && ws.current.readyState === WebSocket.OPEN) {
-        switch (event.key.toUpperCase()) {
-          case 'A':
-            console.log("Start key pressed");
-            sendMessage({ action: "start_session" });
-            break;
-          case 'B':
-            console.log("Pause key pressed");
-            sendMessage({ action: "stop_session" });
-            break;
-          case 'C':
-            console.log("Shutdown key pressed");
-            sendMessage({ action: "shutdown_system" });
-            break;
-        }
-      }
-    };
-
-    window.addEventListener("keydown", handleGlobalKeyPress);
-    return () => window.removeEventListener("keydown", handleGlobalKeyPress);
-  }, [sendMessage]);
-
   return (
     <DisdriveContext.Provider
       value={{

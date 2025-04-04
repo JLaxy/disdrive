@@ -1,6 +1,7 @@
 from backend.disdrive_model import DisdriveModel
 from backend.websocket_service import WebsocketService
 from backend.database_queries import DatabaseQueries
+from backend.websocket_message_handler import MessageHandler
 from backend.log_manager import LogManager
 import asyncio
 import subprocess
@@ -8,10 +9,53 @@ import signal
 import sys
 from playsound import playsound
 import threading
+from pynput import keyboard
 
 _PATH_TO_DB = "./database/disdrive_db.db"
 _WEBSERVER_PATH = "./web_server"
 
+async def handle_system_action(websocket_service : WebsocketService, message_handler, action):
+    """Handle system actions"""
+    try:
+        match action:
+            case "start_session":
+                if hasattr(websocket_service, 'message_handler'):
+                    await websocket_service.message_handler.start_session(None, None)
+            case "stop_session":
+                if hasattr(websocket_service, 'message_handler'):
+                    await websocket_service.message_handler.stop_session(None, None)
+            case "shutdown_system":
+                print("Shutting down system...")
+                if hasattr(websocket_service, 'message_handler'):
+                    await websocket_service.message_handler.shutdown_system(None, websocket_service)
+                sys.exit(0)
+    except Exception as e:
+        print(f"Error in handle_system_action: {e}")
+    finally:
+        asyncio.create_task(websocket_service.broadcast_settings())
+
+def on_key_press(key, websocket_service, hybrid_model):
+    """Handle keyboard events"""
+    try:
+        if hasattr(key, 'char'):
+            # Create new event loop for async operations
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            
+            match key.char.upper():
+                case 'A':
+                    print("Start key pressed")
+                    loop.run_until_complete(handle_system_action(websocket_service, hybrid_model, "start_session"))
+                case 'B':
+                    print("Stop key pressed")
+                    loop.run_until_complete(handle_system_action(websocket_service, hybrid_model, "stop_session"))
+                case 'C':
+                    print("Shutdown key pressed")
+                    loop.run_until_complete(handle_system_action(websocket_service, hybrid_model, "shutdown_system"))
+            
+            loop.close()
+    except Exception as e:
+        print(f"Error handling key press: {e}")
 
 async def main():
     print("Starting Disdrive...")
@@ -45,6 +89,12 @@ async def main():
     # Startup sound
     # threading.Thread(target=playsound, args=(".src/assets/startup.mp3",), daemon=True).start()
 
+    # Start keyboard listener with both services
+    keyboard_listener = keyboard.Listener(
+        on_press=lambda key: on_key_press(key, websocket_service, hybrid_model)
+    )
+    keyboard_listener.start()
+
     try:
         # Wait for all tasks
         await asyncio.gather(
@@ -57,6 +107,7 @@ async def main():
     except Exception as e:
         print(f"Unexpected error: {e}")
     finally:
+        keyboard_listener.stop()  # Stop keyboard listener
         # Cleanup
         if frontend_process:
             frontend_process.terminate()
