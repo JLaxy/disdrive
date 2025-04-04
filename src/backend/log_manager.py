@@ -40,6 +40,8 @@ class LogManager:
 
         self.logs_api.add_api_websocket_route(
             "/ws/logs", self.get_all_sessions)
+        self.logs_api.add_api_websocket_route(
+            "/ws/logs/{session_id}", self.get_session_details)
 
         # Get the absolute path to the database file
         current_dir = Path(__file__).parent
@@ -84,6 +86,46 @@ class LogManager:
         except WebSocketDisconnect:
             self.disconnect_from_api(websocket)
 
+    async def get_session_details(self, websocket: WebSocket, session_id: int):
+        await self.connect_to_api(websocket)
+        print(f"📡 User retrieving details for session_id: {session_id}")
+        try:
+            while True:
+                message = await websocket.receive_text()
+                print(f"LOGMANAGER: messaged received: {message}")
+
+                if message != "get_details":
+                    continue
+
+                # Get all logged behaviors
+                logged_behaviors = self.database_queries.get_all_logged_behaviors(
+                    session_id)
+
+                # If session does not exist in database
+                if not logged_behaviors:
+                    print(
+                        f"failed to retrieve session details for session_id: {session_id}")
+                    continue
+
+                details = [{"session_id": log[0],
+                            "session_start": log[1],
+                            "session_end": log[2],
+                            "behavior_id": log[3],
+                            "behavior": log[4],
+                            "behavior_time_start": log[5],
+                            "behavior_time_end": log[6]} for log in logged_behaviors]
+
+                print(f"sending: {details}")
+
+                await websocket.send_text(json.dumps(details))
+
+        except WebSocketDisconnect:
+            print(f"❌ Client disconnected from session {session_id}")
+        except Exception as e:
+            print(f"❌ Error in WebSocket connection: {e}")
+        finally:
+            self.disconnect_from_api(websocket)
+
     def start_logs_api(self, ip, port):
         """Runs the API server for logs"""
         try:
@@ -94,7 +136,7 @@ class LogManager:
                 asyncio.create_task(server.serve())
             else:
                 asyncio.run(server.serve())
-                
+
         except Exception as e:
             print(f"Failed to run Logs API server!: {e}")
 

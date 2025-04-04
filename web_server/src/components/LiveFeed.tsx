@@ -3,6 +3,7 @@ import { useLocation } from "react-router-dom";
 import { getWebSocket, closeWebSocket } from "../utils/LiveFeedSocketService";
 import { useDisdriveContext } from "../contexts/DisdriveContext";
 import { differenceInSeconds } from "date-fns";
+import { Spinner } from "react-bootstrap";
 
 interface WebSocketData {
   frame: string;
@@ -50,7 +51,9 @@ const LiveFeed: React.FC = memo(() => {
       {imageSrc ? (
         <img src={imageSrc} alt="Live Feed" className="img-fluid mx-auto" />
       ) : (
-        <p className="text-gray-500">Connecting to camera...</p>
+        <div className="d-flex justify-content-center align-items-center m-5">
+          <Spinner animation="border" variant="primary" />
+        </div>
       )}
       {GetLabels(behavior, session_start, has_ongoing_session)}
     </div>

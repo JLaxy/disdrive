@@ -345,8 +345,8 @@ class DisdriveModel:
 
                 if elapsed_time >= 1.0:  # Update FPS more frequently
                     self.current_fps = self.frame_count / elapsed_time
-                    print(
-                        f"Current FPS: {self.current_fps:.2f} | Processed frames: {self.processed_frames}")
+                    # print(
+                    #     f"Current FPS: {self.current_fps:.2f} | Processed frames: {self.processed_frames}")
                     self.frame_count = 0
                     self.processed_frames = 0
                     self.fps_start_time = current_time

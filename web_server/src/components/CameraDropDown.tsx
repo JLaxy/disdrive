@@ -6,7 +6,7 @@ const CameraDropDown: React.FC = () => {
   const { cameras, camera_id, sendMessage } = useDisdriveContext();
 
   const handleSelect = (eventKey: string | null) => {
-    if (eventKey) {
+    if (eventKey && camera_id.toString() != eventKey) {
       sendMessage({
         action: "update_camera",
         data: JSON.stringify({ camera_id: eventKey }),

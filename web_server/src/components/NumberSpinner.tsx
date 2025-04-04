@@ -8,7 +8,7 @@ interface NumberSpinnerProps {
 function NumberSpinner({ days, setDays }: NumberSpinnerProps) {
   const handleClick = (operation: string) => {
     if (operation == "add" && days < 30) setDays(days + 1);
-    else if (operation == "sub" && days > 16) setDays(days - 1);
+    else if (operation == "sub" && days > 15) setDays(days - 1);
   };
 
   return (

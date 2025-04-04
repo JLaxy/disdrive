@@ -60,11 +60,16 @@ function LogsScreen() {
     <Container className="mt-4">
       <Row className="mb-4">
         <Col xs={1}>
-          <ArrowLeftIcon
-            size={24}
+          <div
             onClick={() => navigate("/")}
-            style={{ cursor: "pointer" }}
-          />
+            style={{
+              cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+            }}
+          >
+            <ArrowLeftIcon size={24} />
+          </div>
         </Col>
         <Col className="text-center">
           <h2>Session Logs</h2>
