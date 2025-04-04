@@ -21,14 +21,24 @@ class DatabaseQueries:
             return {
                 "is_logging": True,
                 "camera_id": None,
-                "has_ongoing_session": True
+                "has_ongoing_session": True,
+                "retention_days": 15
             }
 
+        # Safely handle the case where retention_days column might not exist yet
         settings = {
             "is_logging": bool(result[0]),
             "camera_id": result[1],
-            "has_ongoing_session": bool(result[2])
+            "has_ongoing_session": bool(result[2]),
+            "retention_days": 15  # Default value
         }
+
+        # Try to get retention_days if it exists
+        try:
+            if len(result) > 3 and result[3] is not None:
+                settings["retention_days"] = result[3]
+        except IndexError:
+            print("retention_days column not found, using default value of 15")
 
         return settings
 
@@ -62,7 +72,8 @@ class DatabaseQueries:
         setting_map = {
             'is_logging': 'is_logging',
             'camera_id': 'camera_id',
-            'has_ongoing_session': 'has_ongoing_session'
+            'has_ongoing_session': 'has_ongoing_session',
+            'retention_days': 'retention_days'
         }
 
         # Validate the setting key
@@ -89,3 +100,15 @@ class DatabaseQueries:
         """Retrieves all logged behaviors of specific session from database"""
         query = f"SELECT s.session_id, s.session_start, s.session_end, b.behavior_id, behavior, behavior_time_start, behavior_time_end FROM logged_behaviors lb JOIN behaviors b ON lb.behavior_id = b.behavior_id JOIN sessions s ON lb.session_id = s.session_id WHERE s.session_id = ?"
         return self.db_manager.fetch_all(query, (session_id,))
+
+    def delete_logs_from_multiple_tables(self, table_names: list[str], cutoff_date: str):
+        for table_name in table_names:
+            # Compare the full timestamp directly
+            query = f"DELETE FROM {table_name} WHERE behavior_time_start < ?"
+            try:
+                print(f"Attempting to delete logs from table: {table_name}")
+                print(f"Cutoff date: {cutoff_date}")
+                self.db_manager.delete(query, (cutoff_date,))
+                print(f"Deleted logs older than {cutoff_date} from table {table_name}")
+            except Exception as e:
+                print(f"Error deleting logs from table {table_name}: {e}")

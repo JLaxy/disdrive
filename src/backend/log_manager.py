@@ -1,6 +1,7 @@
 import asyncio
 from datetime import datetime
 import json
+from datetime import datetime, timedelta
 from pathlib import Path
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 import uvicorn
@@ -30,6 +31,8 @@ class LogManager:
         self.behavior = None  # behavior_id of current behavior of driver
         self.behavior_start = None  # Datatime behavior has started
         self.current_session_id = None
+
+        self.delete_old_logs()
 
         self.connected_clients: List[WebSocket] = []
         self.configure_logs_api()
@@ -209,3 +212,24 @@ class LogManager:
 
         self.behavior = None
         self.behavior_start = None
+
+    def delete_old_logs(self):
+        """Deletes logs based on retention days setting from the logged_behaviors table."""
+        print("Checking for old logs to delete...")
+
+        # Get retention days from settings
+        settings = self.database_queries.get_settings()
+        retention_days = settings.get('retention_days', 15)  # Default to 15 if not set
+
+        # Calculate cutoff date
+        now = datetime.now()
+        cutoff_date = now - timedelta(days=retention_days)
+        cutoff_date_str = cutoff_date.strftime("%Y-%m-%d %H:%M:%S")
+
+        print(f"Current system date and time: {now}")
+        print(f"Cutoff for {retention_days} days: {cutoff_date_str}")
+
+        # Execute deletion query
+        print(f"Executing deletion query for logs older than {retention_days} days...")
+        self.database_queries.delete_logs_from_multiple_tables(["logged_behaviors"], cutoff_date_str)
+        print("Deletion query executed.")

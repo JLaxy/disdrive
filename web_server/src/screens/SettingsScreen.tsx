@@ -1,4 +1,4 @@
-import { Card, Col, Container, Form, Row } from "react-bootstrap";
+import { Card, Col, Container, Form, Row, Button } from "react-bootstrap";
 import { useNavigate } from "react-router";
 import CameraDropDown from "../components/CameraDropDown";
 import { useDisdriveContext } from "../contexts/DisdriveContext";
@@ -8,8 +8,16 @@ import { useState } from "react";
 
 function SettingsScreen() {
   const navigate = useNavigate();
-  const [days, setDays] = useState<number>(15);
-  // Checkbox state
+  const { settings, sendMessage } = useDisdriveContext();
+  const [days, setDays] = useState<number>(settings?.retention_days || 15);
+
+  const handleSave = () => {
+    sendMessage({ 
+      action: "update_settings", 
+      data: { retention_days: days } 
+    });
+  };
+
   return (
     <Container className=" min-vh-100 d-flex align-items-center justify-content-center">
       <Card className="gap-2 p-5 w-75">
@@ -31,6 +39,13 @@ function SettingsScreen() {
         {GetCheckBox("logging", "Enable Logging")}
         <CameraDropDown />
         <NumberSpinner days={days} setDays={setDays} />
+        <Button 
+          variant="primary" 
+          className="mt-3" 
+          onClick={handleSave}
+        >
+          Save Settings
+        </Button>
       </Card>
     </Container>
   );
