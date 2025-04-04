@@ -47,6 +47,7 @@ class DisdriveModel:
 
         self.database_queries = database_queries
         self.log_manager = LogManager(self.database_queries)
+        self.to_log = None
         self.update_session_status()
 
         self._initialize_cameras()
@@ -420,8 +421,9 @@ class DisdriveModel:
                 #            last_alert_time = current_time
 
                         # Log behavior change
-                        self.log_manager.end_behavior()
-                        self.log_manager.new_behavior_started(behavior)
+                        if self.to_log:
+                            self.log_manager.end_behavior()
+                            self.log_manager.new_behavior_started(behavior)
 
                 # Update shared state for all clients to access
                 self.latest_detection_data["behavior"] = behavior

@@ -244,6 +244,7 @@ class MessageHandler:
 
             # Update logging setting
             self.database_queries.update_setting('is_logging', is_logging)
+            self.disdrive_model.to_log = is_logging
 
             return {
                 'status': 'success',
