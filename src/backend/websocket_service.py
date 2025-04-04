@@ -188,17 +188,19 @@ class WebsocketService:
             # Get the current settings
             settings = json.dumps(self.get_updated_settings())
 
-            print(f"Broadcasting settings {settings} to clients...")
-
             # Create a list of tasks to send settings to each client
             broadcast_tasks = [
                 client.send(settings)
                 for client in self.disdrive_app_clients
             ]
 
+            print(f"Broadcasting settings {settings} to clients {len(self.disdrive_app_clients)}...")
+
             # Run all broadcast tasks concurrently
             if broadcast_tasks:
                 await asyncio.gather(*broadcast_tasks)
+            
+            print("✅ Settings broadcasted successfully")
         except Exception as e:
             print(f"Error broadcasting settings: {e}")
 

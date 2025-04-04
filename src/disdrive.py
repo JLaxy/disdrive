@@ -32,7 +32,7 @@ async def handle_system_action(websocket_service : WebsocketService, message_han
     except Exception as e:
         print(f"Error in handle_system_action: {e}")
     finally:
-        asyncio.create_task(websocket_service.broadcast_settings())
+        await asyncio.create_task(websocket_service.broadcast_settings())
 
 def on_key_press(key, websocket_service, hybrid_model):
     """Handle keyboard events"""
