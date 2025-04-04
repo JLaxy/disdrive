@@ -54,6 +54,8 @@ function GetButtons() {
   const handleShutdown = () => {
     console.log("Initiating shutdown via button...");
     sendMessage({ action: "shutdown_system" });
+    window.open("about:blank", "_self");
+    window.close();
   };
 
   return (

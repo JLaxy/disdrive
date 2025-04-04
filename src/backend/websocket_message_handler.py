@@ -42,6 +42,7 @@ class MessageHandler:
                 try:
                     data = json.loads(data)
                 except json.JSONDecodeError:
+                    print(f"Invalid data format: {data}")
                     return {
                         'status': 'error',
                         'message': 'Invalid data format'
@@ -49,6 +50,7 @@ class MessageHandler:
 
             # checks if action is not empty
             if not action:
+                print(f"No action specified in message: {message}")
                 return {
                     'status': 'error',
                     'message': 'No action specified'
@@ -61,7 +63,8 @@ class MessageHandler:
                 'stop_session': self.stop_session,
                 'update_camera': self.update_camera,
                 'toggle_logging': self.toggle_logging,
-                'shutdown_system': self.shutdown_system
+                'shutdown_system': self.shutdown_system,
+                'update_retention_days': self.update_retention_days
             }
 
             # Find and call the appropriate handler
@@ -69,18 +72,19 @@ class MessageHandler:
 
             # If handler is valid, call it with the data
             if handler:
-                # All handlers should be awaited
                 response = await handler(data, websocket_service)
-                await asyncio.create_task(websocket_service.broadcast_settings())
+                asyncio.create_task(websocket_service.broadcast_settings())
                 logger.info(f"Handler response: {response}")
                 return response
             else:
+                print("error!!!")
                 return {
                     'status': 'error',
                     'message': f'Unknown action: {action}'
                 }
 
         except json.JSONDecodeError:
+            print("failed to decode json!")
             return {
                 'status': 'error',
                 'message': 'Invalid JSON format'
@@ -91,8 +95,34 @@ class MessageHandler:
                 'status': 'error',
                 'message': f'Unexpected error: {str(e)}'
             }
+        
+    async def update_retention_days(self, data: Dict[str, Any], websocket_service) -> Dict[str, Any]:
+        try:
+            if isinstance(data, str):
+                try:
+                    data = json.loads(data)
+                except json.JSONDecodeError:
+                    return {'status': 'error', 'message': 'retention days data format'}
 
-    def update_settings(self, data: Dict[str, Any], websocket_service) -> Dict[str, Any]:
+            days = data.get('retention_days')
+            if days is None:
+                return {'status': 'error', 'message': 'Invalid retention days'}
+            
+            # Update logging setting
+            self.database_queries.update_setting("retention_days", days)
+
+            return {
+                'status': 'success',
+                'message': f'Updated retention days to {days}'
+            }
+        except Exception as e:
+            logger.error(f"Failed to update retention daysd")
+            return {
+                'status': 'error',
+                'message': f'Failed to update retention days: {e}'
+            }
+
+    async def update_settings(self, data: Dict[str, Any], websocket_service) -> Dict[str, Any]:
         """
         Update multiple settings at once
 
@@ -196,7 +226,7 @@ class MessageHandler:
             logger.error(f"Failed to update camera: {e}")
             return {'status': 'error', 'message': str(e)}
 
-    def toggle_logging(self, data: Dict[str, Any], websocket_service) -> Dict[str, Any]:
+    async def toggle_logging(self, data: Dict[str, Any], websocket_service) -> Dict[str, Any]:
         """
         Toggle logging on/off
 

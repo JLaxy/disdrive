@@ -1,22 +1,12 @@
-import { Card, Col, Container, Form, Row, Button } from "react-bootstrap";
+import { Card, Col, Container, Form, Row } from "react-bootstrap";
 import { useNavigate } from "react-router";
 import CameraDropDown from "../components/CameraDropDown";
 import { useDisdriveContext } from "../contexts/DisdriveContext";
 import { ArrowLeftIcon } from "@primer/octicons-react";
 import NumberSpinner from "../components/NumberSpinner";
-import { useState } from "react";
 
 function SettingsScreen() {
   const navigate = useNavigate();
-  const { settings, sendMessage } = useDisdriveContext();
-  const [days, setDays] = useState<number>(settings?.retention_days || 15);
-
-  const handleSave = () => {
-    sendMessage({ 
-      action: "update_settings", 
-      data: { retention_days: days } 
-    });
-  };
 
   return (
     <Container className=" min-vh-100 d-flex align-items-center justify-content-center">
@@ -38,14 +28,7 @@ function SettingsScreen() {
         </Row>
         {GetCheckBox("logging", "Enable Logging")}
         <CameraDropDown />
-        <NumberSpinner days={days} setDays={setDays} />
-        <Button 
-          variant="primary" 
-          className="mt-3" 
-          onClick={handleSave}
-        >
-          Save Settings
-        </Button>
+        <NumberSpinner/>
       </Card>
     </Container>
   );

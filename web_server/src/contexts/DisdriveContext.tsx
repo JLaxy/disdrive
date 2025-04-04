@@ -12,6 +12,8 @@ interface DisdriveContextType {
   setSelectedCamera: (value: number) => void;
   session_start: string;
   setSessionStart: (value: string) => void;
+  retention_days: number;
+  setRetentionDays: (value: number) => void;
 }
 
 const DisdriveContext = createContext<DisdriveContextType | undefined>(
@@ -28,6 +30,7 @@ export const DisdriveProvider = ({
   const [cameras, setCameras] = useState<number[]>([]);
   const [camera_id, setSelectedCamera] = useState<number>(0);
   const [session_start, setSessionStart] = useState<string>("");
+  const [retention_days, setRetentionDays] = useState<number>(15);
   const ws = useRef<WebSocket | null>(null);
 
   const sendMessage = useCallback((data: { action: string; data?: any }) => {
@@ -63,6 +66,14 @@ export const DisdriveProvider = ({
           console.error("Failed to parse camera data:", e);
         }
         break;
+      case "update_retention_days":
+        try {
+          const retentionData = JSON.parse(data.data);
+          setRetentionDays(retentionData.retention_days);
+        } catch (e) {
+          console.error("Failed to parse retention days data:", e);
+        }
+        break;
       default:
         console.warn("🚫 Invalid action:", data.action);
     }
@@ -86,6 +97,7 @@ export const DisdriveProvider = ({
           setCameras(data.cameras || []);
           setSelectedCamera(data.camera_id);
           setSessionStart(data.session_start || "");
+          setRetentionDays(data.retention_days || 15);
         }
       } catch (error) {
         console.error("⚠️ Error parsing WebSocket message:", error);
@@ -144,6 +156,8 @@ export const DisdriveProvider = ({
         setSelectedCamera,
         session_start,
         setSessionStart,
+        retention_days,
+        setRetentionDays,
       }}
     >
       {children}

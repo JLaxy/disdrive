@@ -17,7 +17,7 @@ function SessionScreen() {
 
 function GetButtons(
   hasOngoingSession: boolean,
-  sendMessage: (arg0: Record<string, string>) => void
+  sendMessage: (value: {action: string, data?: any}) => void
 ) {
   const navigate = useNavigate();
   return (
