@@ -127,6 +127,7 @@ class MessageHandler:
             logger.info("Starting session...")
             if await self.session_manager.resume_operations():
                 self.database_queries.update_setting('has_ongoing_session', True)
+                self.disdrive_model.log_manager.start_session()
                 self.disdrive_model.update_session_status()
                 return {
                     'status': 'success',

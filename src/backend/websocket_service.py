@@ -127,12 +127,50 @@ class WebsocketService:
     def logs_socket(self):
         pass
 
+    async def cleanup(self):
+        """Cleanup all websocket connections before shutdown"""
+        try:
+            print("Cleaning up websocket connections...")
+            
+            # Close all client connections
+            close_tasks = []
+            
+            # Close livefeed clients
+            for client in self.livefeed_clients:
+                close_tasks.append(client.close())
+            self.livefeed_clients.clear()
+            
+            # Close disdrive app clients
+            for client in self.disdrive_app_clients:
+                close_tasks.append(client.close())
+            self.disdrive_app_clients.clear()
+            
+            # Wait for all connections to close
+            if close_tasks:
+                await asyncio.gather(*close_tasks)
+            
+            # Stop the servers
+            self.stop_servers()
+            
+            print("✅ Websocket cleanup completed")
+            
+        except Exception as e:
+            print(f"⚠️ Error during websocket cleanup: {e}")
+            raise e
+
     def stop_servers(self):
         """Gracefully stop WebSocket servers"""
-        if self.livefeed_server:
-            self.livefeed_server.close()
-        if self.disdrive_app_server:
-            self.disdrive_app_server.close()
+        try:
+            if self.livefeed_server:
+                self.livefeed_server.close()
+            if self.disdrive_app_server:
+                self.disdrive_app_server.close()
+            if self.logs_server:
+                self.logs_server.close()
+            print("✅ All websocket servers stopped")
+        except Exception as e:
+            print(f"⚠️ Error stopping servers: {e}")
+            raise e
 
     def get_updated_settings(self):
         """Retrieves current settings from database"""
@@ -163,3 +201,4 @@ class WebsocketService:
                 await asyncio.gather(*broadcast_tasks)
         except Exception as e:
             print(f"Error broadcasting settings: {e}")
+

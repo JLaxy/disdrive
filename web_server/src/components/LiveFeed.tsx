@@ -8,6 +8,7 @@ import { Spinner } from "react-bootstrap";
 interface WebSocketData {
   frame: string;
   behavior: string;
+  
 }
 
 const LiveFeed: React.FC = memo(() => {

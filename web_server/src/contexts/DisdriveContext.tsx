@@ -1,12 +1,5 @@
 import { createContext, useState, useContext, useRef, useEffect, useCallback } from "react";
 
-interface Settings {
-  is_logging: boolean;
-  camera_id: number | null;
-  has_ongoing_session: boolean;
-  retention_days: number;
-}
-
 interface DisdriveContextType {
   is_logging: boolean;
   setIsLogging: (value: boolean) => void;
@@ -19,9 +12,6 @@ interface DisdriveContextType {
   setSelectedCamera: (value: number) => void;
   session_start: string;
   setSessionStart: (value: string) => void;
-  camera_view: string;
-  setCameraView: (value: string) => void;
-  settings: Settings | null;
 }
 
 const DisdriveContext = createContext<DisdriveContextType | undefined>(
@@ -38,8 +28,6 @@ export const DisdriveProvider = ({
   const [cameras, setCameras] = useState<number[]>([]);
   const [camera_id, setSelectedCamera] = useState<number>(0);
   const [session_start, setSessionStart] = useState<string>("");
-  const [camera_view, setCameraView] = useState<string>("Front");
-  const [settings, setSettings] = useState<Settings | null>(null);
   const ws = useRef<WebSocket | null>(null);
 
   const sendMessage = useCallback((data: { action: string; data?: any }) => {
@@ -75,14 +63,6 @@ export const DisdriveProvider = ({
           console.error("Failed to parse camera data:", e);
         }
         break;
-      case "update_camera_view":
-        try {
-          const viewData = JSON.parse(data.data);
-          setCameraView(viewData.camera_view);
-        } catch (e) {
-          console.error("Failed to parse camera view data:", e);
-        }
-        break;
       default:
         console.warn("🚫 Invalid action:", data.action);
     }
@@ -100,16 +80,12 @@ export const DisdriveProvider = ({
         const data = JSON.parse(event.data);
         console.log(`📡 Received message from server: `, data);
         
-        if (data.settings) {
-          setIsLogging(data.settings.is_logging);
-          setHasOngoingSession(data.settings.has_ongoing_session);
-          setCameras(data.settings.cameras || []);
-          setSelectedCamera(data.settings.camera_id);
-          setSessionStart(data.settings.session_start || "");
-          if (data.settings.camera_view) {
-            setCameraView(data.settings.camera_view);
-          }
-          setSettings(data.settings);
+        if (data) {
+          setIsLogging(data.is_logging);
+          setHasOngoingSession(data.has_ongoing_session);
+          setCameras(data.cameras || []);
+          setSelectedCamera(data.camera_id);
+          setSessionStart(data.session_start || "");
         }
       } catch (error) {
         console.error("⚠️ Error parsing WebSocket message:", error);
@@ -132,10 +108,20 @@ export const DisdriveProvider = ({
   // Add global keyboard event listener
   useEffect(() => {
     const handleGlobalKeyPress = (event: KeyboardEvent) => {
-      if (event.key === "C" || event.key === "c") {
-        console.log("Global shutdown key pressed");
-        if (ws.current && ws.current.readyState === WebSocket.OPEN) {
-          sendMessage({ action: "shutdown_system" });
+      if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+        switch (event.key.toUpperCase()) {
+          case 'A':
+            console.log("Start key pressed");
+            sendMessage({ action: "start_session" });
+            break;
+          case 'B':
+            console.log("Pause key pressed");
+            sendMessage({ action: "stop_session" });
+            break;
+          case 'C':
+            console.log("Shutdown key pressed");
+            sendMessage({ action: "shutdown_system" });
+            break;
         }
       }
     };
@@ -158,9 +144,6 @@ export const DisdriveProvider = ({
         setSelectedCamera,
         session_start,
         setSessionStart,
-        camera_view,
-        setCameraView,
-        settings,
       }}
     >
       {children}

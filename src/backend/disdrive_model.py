@@ -351,9 +351,11 @@ class DisdriveModel:
                     self.processed_frames = 0
                     self.fps_start_time = current_time
 
-                # Encode frame for UI with reduced resolution for faster encoding
-                display_frame = cv2.resize(frame, (320, 240))
-                _, buffer = cv2.imencode('.jpg', display_frame, [
+                # # Encode frame for UI with reduced resolution for faster encoding
+                # display_frame = cv2.resize(frame, (320, 240))
+                # _, buffer = cv2.imencode('.jpg', display_frame, [
+                #                          cv2.IMWRITE_JPEG_QUALITY, 70])   Z
+                _, buffer = cv2.imencode('.jpg', frame, [
                                          cv2.IMWRITE_JPEG_QUALITY, 70])
                 frame_bytes = base64.b64encode(buffer).decode('utf-8')
                 self.latest_detection_data["frame"] = frame_bytes
