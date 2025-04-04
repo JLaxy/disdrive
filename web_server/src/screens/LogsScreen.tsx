@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Card, Col, Container, Row } from "react-bootstrap";
+import { Card, Col, Container, Row, Spinner } from "react-bootstrap";
 import { ArrowLeftIcon } from "@primer/octicons-react";
 
 interface Log {
@@ -53,7 +53,12 @@ function LogsScreen() {
   };
 
   if (isLoading) {
-    return <div className="text-center mt-4">Loading logs...</div>;
+    return (
+      <Container className="d-flex justify-content-center align-items-center text-center mt-4 min-vh-100">
+        <Spinner animation="border" variant="primary" />
+        <p>Loading logs...</p>
+      </Container>
+    );
   }
 
   return (

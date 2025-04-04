@@ -80,7 +80,7 @@ function DetailedLogs() {
 
   if (isLoading) {
     return (
-      <Container className="text-center mt-4">
+      <Container className="d-flex justify-content-center align-items-center text-center mt-4 min-vh-100">
         <Spinner animation="border" variant="primary" />
         <p>Loading session details...</p>
       </Container>
