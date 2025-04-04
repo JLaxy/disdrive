@@ -7,12 +7,21 @@ import asyncio
 import subprocess
 import signal
 import sys
-from playsound import playsound
+import pygame
 import threading
 from pynput import keyboard
 
 _PATH_TO_DB = "./database/disdrive_db.db"
 _WEBSERVER_PATH = "./web_server"
+
+#Play sounds
+def play_sound(file_path: str):
+    pygame.init()
+    pygame.mixer.init()
+    pygame.mixer.music.load(file_path)
+    pygame.mixer.music.play()
+    while pygame.mixer.music.get_busy():
+        continue
 
 async def handle_system_action(websocket_service : WebsocketService, message_handler, action):
     """Handle system actions"""
@@ -86,8 +95,8 @@ async def main():
     # Start Frontend
     frontend_process = start_frontend()
 
-    # Startup sound
-    # threading.Thread(target=playsound, args=(".src/assets/startup.mp3",), daemon=True).start()
+    #Startup sounds
+    threading.Thread(target=play_sound, args=("src/assets/startup.mp3",), daemon=True).start()
 
     # Start keyboard listener with both services
     keyboard_listener = keyboard.Listener(

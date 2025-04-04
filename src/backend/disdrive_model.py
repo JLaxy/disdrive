@@ -12,7 +12,7 @@ import threading
 import concurrent.futures
 import multiprocessing
 import time
-from playsound import playsound
+import pygame
 
 # Fix device selection - CORRECTED
 _TRAINED_MODEL_SAVE_PATH = "./saved_models/disdrive_model.pth"
@@ -38,7 +38,15 @@ _MAX_WORKERS = max(4, multiprocessing.cpu_count() - 2)  # Use more CPU cores
 _FEATURE_QUEUE_SIZE = 20  # Larger queue size
 _FRAME_QUEUE_SIZE = 20  # Larger queue size
 
-
+#Play sounds
+def play_sound(file_path: str):
+    pygame.init()
+    pygame.mixer.init()
+    pygame.mixer.music.load(file_path)
+    pygame.mixer.music.play()
+    while pygame.mixer.music.get_busy():
+        continue
+    
 class DisdriveModel:
     """Handles all functionalities related to the Machine Learning Model"""
 
@@ -415,6 +423,9 @@ class DisdriveModel:
                     if new_behavior != "Detecting..." and new_behavior != behavior:
                         behavior = new_behavior
 
+                        #Alert function
+                        if behavior != "Safe Driving":
+                            threading.Thread(target=play_sound, args=("src/assets/alert.mp3",), daemon=True).start()
                         # Alert function
                 #        if behavior != "Safe Driving" and (current_time - last_alert_time) >=1 :
                 #            self.play_alert_sound()
