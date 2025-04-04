@@ -2,6 +2,7 @@ import json
 import asyncio
 import websockets
 from backend.websocket_message_handler import MessageHandler
+from backend.session_manager import SessionManager
 
 _CONNECTION_TIMEOUT = 5  # No. of seconds to check if to disconnect clients
 
@@ -17,8 +18,9 @@ class WebsocketService:
         # Syncing references
         self.disdrive_model = disdrive_model
         self.database_queries = database_queries
+        self.session_manager = SessionManager()
 
-        self.message_handler = MessageHandler(disdrive_model, database_queries)
+        self.message_handler = MessageHandler(disdrive_model, database_queries, self.session_manager)
 
         # Flags to control server shutdown
         self.livefeed_server = None
