@@ -134,6 +134,7 @@ class MessageHandler:
 
             # Set has_ongoing_session to True
             self.database_queries.update_setting('has_ongoing_session', True)
+            self.disdrive_model.log_manager.start_session()
             # Sync with model
             self.disdrive_model.update_session_status()
 
