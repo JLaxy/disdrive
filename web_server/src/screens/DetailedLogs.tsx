@@ -141,7 +141,7 @@ function DetailedLogs() {
       </Card>
 
       <h4 className="fw-bold mt-4">Behaviors</h4>
-      {logDetails?.length > 0 ? (
+      {logDetails[0]["behavior"] ? (
         logDetails.map((log, index) => (
           <Card key={index} className="mb-2">
             <Card.Body>
@@ -156,7 +156,9 @@ function DetailedLogs() {
           </Card>
         ))
       ) : (
-        <p className="text-muted">No behaviors recorded.</p>
+        <p className="text-muted">
+          No behaviors recorded, logging may be off during this session.
+        </p>
       )}
 
       <Button

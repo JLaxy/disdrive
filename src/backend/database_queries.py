@@ -96,6 +96,11 @@ class DatabaseQueries:
         query = "SELECT * FROM sessions ORDER BY session_start DESC"
         return self.db_manager.fetch_all(query)
 
+    def get_session_details(self, session_id: int):
+        """Retrieves session details from database"""
+        query = f"SELECT * FROM sessions WHERE session_id = ?"
+        return self.db_manager.fetch_one(query, (session_id,))
+
     def get_all_logged_behaviors(self, session_id: int):
         """Retrieves all logged behaviors of specific session from database"""
         query = f"SELECT s.session_id, s.session_start, s.session_end, b.behavior_id, behavior, behavior_time_start, behavior_time_end FROM logged_behaviors lb JOIN behaviors b ON lb.behavior_id = b.behavior_id JOIN sessions s ON lb.session_id = s.session_id WHERE s.session_id = ?"
@@ -109,6 +114,7 @@ class DatabaseQueries:
                 print(f"Attempting to delete logs from table: {table_name}")
                 print(f"Cutoff date: {cutoff_date}")
                 self.db_manager.delete(query, (cutoff_date,))
-                print(f"Deleted logs older than {cutoff_date} from table {table_name}")
+                print(
+                    f"Deleted logs older than {cutoff_date} from table {table_name}")
             except Exception as e:
                 print(f"Error deleting logs from table {table_name}: {e}")

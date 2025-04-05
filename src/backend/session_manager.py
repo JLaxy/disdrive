@@ -9,6 +9,7 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - SessionManager: %(message)s'
 )
 
+
 class SessionManager:
     def __init__(self):
         """Manages session states and operations."""

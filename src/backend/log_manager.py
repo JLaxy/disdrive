@@ -104,22 +104,34 @@ class LogManager:
                 logged_behaviors = self.database_queries.get_all_logged_behaviors(
                     session_id)
 
-                # If session does not exist in database
-                if not logged_behaviors:
-                    print(
-                        f"failed to retrieve session details for session_id: {session_id}")
-                    continue
+                print(f"LOGMANAGER: logged_behaviors: {logged_behaviors}")
 
-                details = [{"session_id": log[0],
-                            "session_start": log[1],
-                            "session_end": log[2],
-                            "behavior_id": log[3],
-                            "behavior": log[4],
-                            "behavior_time_start": log[5],
-                            "behavior_time_end": log[6]} for log in logged_behaviors]
+                details = []
+
+                # If session does not exist in database
+                if logged_behaviors:
+                    details = [{"session_id": log[0],
+                                "session_start": log[1],
+                                "session_end": log[2],
+                                "behavior_id": log[3],
+                                "behavior": log[4],
+                                "behavior_time_start": log[5],
+                                "behavior_time_end": log[6]} for log in logged_behaviors]
+                else:
+                    print(
+                        f"no logged behaviors found for session_id: {session_id}")
+                    # If no logged behaviors, get session details
+                    session_details = self.database_queries.get_session_details(
+                        session_id)
+                    details = [{"session_id": session_details[0],
+                                "session_start": session_details[1],
+                                "session_end": session_details[2],
+                                "behavior_id": None,
+                                "behavior": None,
+                                "behavior_time_start": None,
+                                "behavior_time_end": None}]
 
                 print(f"sending: {details}")
-
                 await websocket.send_text(json.dumps(details))
 
         except WebSocketDisconnect:
@@ -219,7 +231,8 @@ class LogManager:
 
         # Get retention days from settings
         settings = self.database_queries.get_settings()
-        retention_days = settings.get('retention_days', 15)  # Default to 15 if not set
+        retention_days = settings.get(
+            'retention_days', 15)  # Default to 15 if not set
 
         # Calculate cutoff date
         now = datetime.now()
@@ -230,6 +243,8 @@ class LogManager:
         print(f"Cutoff for {retention_days} days: {cutoff_date_str}")
 
         # Execute deletion query
-        print(f"Executing deletion query for logs older than {retention_days} days...")
-        self.database_queries.delete_logs_from_multiple_tables(["logged_behaviors"], cutoff_date_str)
+        print(
+            f"Executing deletion query for logs older than {retention_days} days...")
+        self.database_queries.delete_logs_from_multiple_tables(
+            ["logged_behaviors"], cutoff_date_str)
         print("Deletion query executed.")

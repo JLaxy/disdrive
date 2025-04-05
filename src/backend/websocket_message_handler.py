@@ -9,6 +9,7 @@ from backend.session_manager import SessionManager
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
 class MessageHandler:
     def __init__(self, disdrive_model: DisdriveModel, database_queries: DatabaseQueries, session_manager: SessionManager):
         """Handles incoming WebSocket messages from clients"""
@@ -95,7 +96,7 @@ class MessageHandler:
                 'status': 'error',
                 'message': f'Unexpected error: {str(e)}'
             }
-        
+
     async def update_retention_days(self, data: Dict[str, Any], websocket_service) -> Dict[str, Any]:
         try:
             if isinstance(data, str):
@@ -107,7 +108,7 @@ class MessageHandler:
             days = data.get('retention_days')
             if days is None:
                 return {'status': 'error', 'message': 'Invalid retention days'}
-            
+
             # Update logging setting
             self.database_queries.update_setting("retention_days", days)
 
@@ -156,7 +157,8 @@ class MessageHandler:
         try:
             logger.info("Starting session...")
             if await self.session_manager.resume_operations():
-                self.database_queries.update_setting('has_ongoing_session', True)
+                self.database_queries.update_setting(
+                    'has_ongoing_session', True)
                 self.disdrive_model.log_manager.start_session()
                 self.disdrive_model.update_session_status()
                 return {
@@ -179,7 +181,8 @@ class MessageHandler:
         try:
             logger.info("Stopping session...")
             if await self.session_manager.pause_operations():
-                self.database_queries.update_setting('has_ongoing_session', False)
+                self.database_queries.update_setting(
+                    'has_ongoing_session', False)
                 self.disdrive_model.update_session_status()
                 return {
                     'status': 'success',
@@ -199,7 +202,7 @@ class MessageHandler:
     async def update_camera(self, data: Dict[str, Any], websocket_service) -> Dict[str, Any]:
         try:
             logger.info("Updating camera...")
-            
+
             if isinstance(data, str):
                 try:
                     data = json.loads(data)
@@ -263,10 +266,14 @@ class MessageHandler:
             logger.info('Initiating system shutdown...')
             # First clean up WebSocket connections
             await websocket_service.cleanup()
-            
+
+            # Stop the session if it's running
+            if not self.session_manager.is_paused:
+                self.stop_session(data, websocket_service)
+                self.disdrive_model.log_manager.end_session()
             # Then initiate shutdown
             self.session_manager.shutdown_system()
-            
+
             return {
                 'status': 'success',
                 'message': 'System shutdown initiated'
@@ -277,4 +284,3 @@ class MessageHandler:
                 'status': 'error',
                 'message': f'Failed to shutdown system: {str(e)}'
             }
-
