@@ -7,6 +7,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 import uvicorn
 from backend.database_queries import DatabaseQueries
 from typing import List
+import base64
 
 _DATETIME_FORMAT = "%Y-%m-%d %H:%M:%S"
 _BEHAVIOR_LABEL = {
@@ -31,6 +32,7 @@ class LogManager:
         self.behavior = None  # behavior_id of current behavior of driver
         self.behavior_start = None  # Datatime behavior has started
         self.current_session_id = None
+        self.snapshot = None  # snapshot of the current behavior
 
         self.delete_old_logs()
 
@@ -116,7 +118,8 @@ class LogManager:
                                 "behavior_id": log[3],
                                 "behavior": log[4],
                                 "behavior_time_start": log[5],
-                                "behavior_time_end": log[6]} for log in logged_behaviors]
+                                "behavior_time_end": log[6],
+                                "snapshot": base64.b64encode(log[7]).decode('utf-8') if log[7] else None} for log in logged_behaviors]
                 else:
                     print(
                         f"no logged behaviors found for session_id: {session_id}")
@@ -129,9 +132,10 @@ class LogManager:
                                 "behavior_id": None,
                                 "behavior": None,
                                 "behavior_time_start": None,
-                                "behavior_time_end": None}]
+                                "behavior_time_end": None,
+                                "snapshot": None}]
 
-                print(f"sending: {details}")
+                print(f"LOGMANAGER sending session {session_id} details...")
                 await websocket.send_text(json.dumps(details))
 
         except WebSocketDisconnect:
@@ -203,9 +207,10 @@ class LogManager:
 
         self.current_session_id = None
 
-    def new_behavior_started(self, behavior):
+    def new_behavior_started(self, behavior, snapshot):
         """Records current time new behavior has started"""
         try:
+            self.snapshot = snapshot
             self.behavior = _BEHAVIOR_LABEL[behavior]
             self.behavior_start = self.get_time_now()
         except Exception as e:
@@ -220,7 +225,7 @@ class LogManager:
             return
 
         self.database_queries.log_behavior(
-            self.behavior, self.current_session_id, self.behavior_start, self.get_time_now())
+            self.behavior, self.current_session_id, self.behavior_start, self.get_time_now(), self.snapshot)
 
         self.behavior = None
         self.behavior_start = None

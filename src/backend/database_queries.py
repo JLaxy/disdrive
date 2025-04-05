@@ -86,10 +86,10 @@ class DatabaseQueries:
         # Execute the update
         self.db_manager.update(query, (value,))
 
-    def log_behavior(self, behavior_id: int, session_id: int, behavior_time_start: datetime, behavior_time_end: datetime):
-        query = f"INSERT INTO logged_behaviors (behavior_id, session_id, behavior_time_start, behavior_time_end) VALUES (?, ?, ?, ?)"
+    def log_behavior(self, behavior_id: int, session_id: int, behavior_time_start: datetime, behavior_time_end: datetime, snapshot):
+        query = f"INSERT INTO logged_behaviors (behavior_id, session_id, behavior_time_start, behavior_time_end, snapshot) VALUES (?, ?, ?, ?, ?)"
         self.db_manager.insert(
-            query, (behavior_id, session_id, behavior_time_start, behavior_time_end))
+            query, (behavior_id, session_id, behavior_time_start, behavior_time_end, snapshot))
 
     def get_all_sessions(self):
         """Retrieves all sessions in database"""
@@ -103,7 +103,7 @@ class DatabaseQueries:
 
     def get_all_logged_behaviors(self, session_id: int):
         """Retrieves all logged behaviors of specific session from database"""
-        query = f"SELECT s.session_id, s.session_start, s.session_end, b.behavior_id, behavior, behavior_time_start, behavior_time_end FROM logged_behaviors lb JOIN behaviors b ON lb.behavior_id = b.behavior_id JOIN sessions s ON lb.session_id = s.session_id WHERE s.session_id = ?"
+        query = f"SELECT s.session_id, s.session_start, s.session_end, b.behavior_id, behavior, behavior_time_start, behavior_time_end, snapshot FROM logged_behaviors lb JOIN behaviors b ON lb.behavior_id = b.behavior_id JOIN sessions s ON lb.session_id = s.session_id WHERE s.session_id = ?"
         return self.db_manager.fetch_all(query, (session_id,))
 
     def delete_logs_from_multiple_tables(self, table_names: list[str], cutoff_date: str):

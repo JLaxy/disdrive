@@ -19,6 +19,7 @@ interface LogDetails {
   behavior: string;
   behavior_time_start: string;
   behavior_time_end: string;
+  snapshot: string;
 }
 
 function DetailedLogs() {
@@ -147,6 +148,12 @@ function DetailedLogs() {
             <Card.Body>
               <Card.Text>
                 <strong>Behavior:</strong> {log.behavior}
+                <br />
+                <img
+                  src={`data:image/jpeg;base64,${log.snapshot}`}
+                  alt="detected behavior"
+                  className="img-fluid mx-auto d-flex"
+                />
                 <br />
                 <strong>Started:</strong> {formatDate(log.behavior_time_start)}
                 <br />

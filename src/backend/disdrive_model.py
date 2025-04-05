@@ -38,7 +38,9 @@ _MAX_WORKERS = max(4, multiprocessing.cpu_count() - 2)  # Use more CPU cores
 _FEATURE_QUEUE_SIZE = 20  # Larger queue size
 _FRAME_QUEUE_SIZE = 20  # Larger queue size
 
-#Play sounds
+# Play sounds
+
+
 def play_sound(file_path: str):
     pygame.init()
     pygame.mixer.init()
@@ -46,7 +48,8 @@ def play_sound(file_path: str):
     pygame.mixer.music.play()
     while pygame.mixer.music.get_busy():
         continue
-    
+
+
 class DisdriveModel:
     """Handles all functionalities related to the Machine Learning Model"""
 
@@ -423,9 +426,10 @@ class DisdriveModel:
                     if new_behavior != "Detecting..." and new_behavior != behavior:
                         behavior = new_behavior
 
-                        #Alert function
+                        # Alert function
                         if behavior != "Safe Driving":
-                            threading.Thread(target=play_sound, args=("src/assets/alert.mp3",), daemon=True).start()
+                            threading.Thread(target=play_sound, args=(
+                                "src/assets/alert.mp3",), daemon=True).start()
                         # Alert function
                 #        if behavior != "Safe Driving" and (current_time - last_alert_time) >=1 :
                 #            self.play_alert_sound()
@@ -434,7 +438,8 @@ class DisdriveModel:
                         # Log behavior change
                         if self.to_log:
                             self.log_manager.end_behavior()
-                            self.log_manager.new_behavior_started(behavior)
+                            self.log_manager.new_behavior_started(
+                                behavior, buffer.tobytes())
 
                 # Update shared state for all clients to access
                 self.latest_detection_data["behavior"] = behavior
