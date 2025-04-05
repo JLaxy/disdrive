@@ -12,14 +12,29 @@ from pynput import keyboard
 _PATH_TO_DB = "./database/disdrive_db.db"
 _WEBSERVER_PATH = "./web_server"
 
-#Play sounds
-def play_sound(file_path: str):
+def play_sound(file_path: str, channel_id=0):
+    """play sound on a specific channel to prevent cutting off other sounds"""
     pygame.init()
-    pygame.mixer.init()
-    pygame.mixer.music.load(file_path)
-    pygame.mixer.music.play()
-    while pygame.mixer.music.get_busy():
-        continue
+    if not pygame.mixer.get_init():
+        pygame.mixer.init()
+
+    #Create up to 8 channels (different sounds)
+    if channel_id >= pygame.mixer.get_num_channels():
+        pygame.mixer.set_num_channels(channel_id + 1)
+
+    #Get specific channel
+    channel = pygame.mixer.Channel(channel_id)
+
+    #Load and play sound
+    sound = pygame.mixer.Sound(file_path)
+    channel.play(sound)
+
+    #Only wait for completion if specifically requested
+    if channel_id == 0:
+        while channel.get_busy():
+            pygame.time.wait(100)  #Check less frequently to reduce CPU usage
+
+    
 
 async def handle_system_action(websocket_service : WebsocketService, message_handler, action):
     """Handle system actions"""
@@ -94,7 +109,7 @@ async def main():
     frontend_process = start_frontend()
 
     #Startup sounds
-    threading.Thread(target=play_sound, args=("src/assets/startup.mp3",), daemon=True).start()
+    threading.Thread(target=play_sound, args=("src/assets/startup.mp3", 0), daemon=True).start()
 
     # Start keyboard listener with both services
     keyboard_listener = keyboard.Listener(

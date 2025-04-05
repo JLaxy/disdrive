@@ -38,17 +38,34 @@ _MAX_WORKERS = max(4, multiprocessing.cpu_count() - 2)  # Use more CPU cores
 _FEATURE_QUEUE_SIZE = 20  # Larger queue size
 _FRAME_QUEUE_SIZE = 20  # Larger queue size
 
-# Play sounds
+#Alert settings
+_ALERT_INTERVAL = 1 #Play sound every second
+_ALERT_SOUND_PATH = "./src/assets/alert.mp3"
 
-
-def play_sound(file_path: str):
+#Initialize pygame mixer once
+pygame.mixer.init()
+    
+def play_sound(file_path: str, channel_id=0):
+    """play sound on a specific channel to prevent cutting off other sounds"""
     pygame.init()
-    pygame.mixer.init()
-    pygame.mixer.music.load(file_path)
-    pygame.mixer.music.play()
-    while pygame.mixer.music.get_busy():
-        continue
+    if not pygame.mixer.get_init():
+        pygame.mixer.init()
 
+    #Create up to 8 channels (different sounds)
+    if channel_id >= pygame.mixer.get_num_channels():
+        pygame.mixer.set_num_channels(channel_id + 1)
+
+    #Get specific channel
+    channel = pygame.mixer.Channel(channel_id)
+
+    #Load and play sound
+    sound = pygame.mixer.Sound(file_path)
+    channel.play(sound)
+    
+    #Only wait for completion if specifically requested
+    if channel_id == 0:
+        while channel.get_busy():
+            pygame.time.wait(100)  #Check less frequently to reduce CPU usage
 
 class DisdriveModel:
     """Handles all functionalities related to the Machine Learning Model"""
@@ -64,6 +81,11 @@ class DisdriveModel:
         self._initialize_cameras()
 
         self._configure_threads()
+
+        #Alert tracking variables
+        self.last_alert_time = 0
+        self.alert_playing = False
+        self.unsafe_behavior_detected = False
 
         saved_camera = self.get_selected_camera_saved()
         self._detection_loop_task = None
@@ -313,14 +335,24 @@ class DisdriveModel:
             print(f"Error processing frame buffer: {e}")
             return "Error"
 
-    # Alert threading
-    # def play_alert_sound(self):
-    #    """Plays alert sound"""
-    #    threading.Threaad(target=playsound, args=("./src/assets/alert.mp3",), daemon=True).start()
+    def play_continuous_alert(self, behavior):
+        """Play alert sound continuosly when behavior is unsafe"""
+        current_time = time.time()
+
+        #Check if behavior is unsafe
+        unsafe_behavior = behavior != "Safe Driving" and behavior != "Detecting..." and behavior != "Error" and behavior != "Detection Paused"
+
+        #Update unsafe behavior status
+        self.unsafe_behavior_detected = unsafe_behavior
+
+        #Play alert at regular intervals if unsafe behavior continues
+        if unsafe_behavior and (current_time - self.last_alert_time >= _ALERT_INTERVAL):
+            self.last_alert_time = current_time
+            threading.Thread(target=play_sound, args=(_ALERT_SOUND_PATH, 1), daemon=True).start()
+            print("Alert sound triggered for:", behavior)
 
     async def detection_loop(self):
         """Responsible for detecting behavior of driver with optimized processing"""
-    #    global last_alert_time #Alert time counter
 
         print("Starting Detection...")
         self.fps_start_time = asyncio.get_event_loop().time()
@@ -426,15 +458,6 @@ class DisdriveModel:
                     if new_behavior != "Detecting..." and new_behavior != behavior:
                         behavior = new_behavior
 
-                        # Alert function
-                        if behavior != "Safe Driving":
-                            threading.Thread(target=play_sound, args=(
-                                "src/assets/alert.mp3",), daemon=True).start()
-                        # Alert function
-                #        if behavior != "Safe Driving" and (current_time - last_alert_time) >=1 :
-                #            self.play_alert_sound()
-                #            last_alert_time = current_time
-
                         # Log behavior change
                         if self.to_log:
                             self.log_manager.end_behavior()
@@ -443,6 +466,9 @@ class DisdriveModel:
 
                 # Update shared state for all clients to access
                 self.latest_detection_data["behavior"] = behavior
+
+                #Play continuous alert if behavior is unsafe
+                self.play_continuous_alert(behavior)
 
                 # Use a very minimal sleep to yield control
                 await asyncio.sleep(0.001)
