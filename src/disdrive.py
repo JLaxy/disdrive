@@ -5,6 +5,8 @@ import asyncio
 import subprocess
 import signal
 import sys
+import pexpect
+import os
 import pygame
 import threading
 from pynput import keyboard
@@ -50,6 +52,15 @@ async def handle_system_action(websocket_service : WebsocketService, message_han
                 print("Shutting down system...")
                 if hasattr(websocket_service, 'message_handler'):
                     await websocket_service.message_handler.shutdown_system(None, websocket_service)
+                sudo_password = os.environ.get('SUDO_PASSWORD', 'Disdrive1234')
+                try:
+                    child = pexpect.spawn('sudo shutdown -h now')
+                    child.expect('password')
+                    child.sendline(sudo_password)
+                    child.expect(pexpect.EOF)
+                except Exception as e:
+                    print(f"Error shutting down system: {e}")
+                    #os.system("sudo shutdown-h now")
                 sys.exit(0)
     except Exception as e:
         print(f"Error in handle_system_action: {e}")
