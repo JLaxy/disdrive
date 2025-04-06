@@ -17,8 +17,8 @@ _NUM_OF_CLASSES = 8
 
 """LSTM Parameters"""
 _LSTM_INPUT_SIZE = 256
-_LSTM_HIDDEN_SIZE = 128
-_LSTM_NUM_LAYERS = 1
+_LSTM_HIDDEN_SIZE = 256
+_LSTM_NUM_LAYERS = 2
 
 _BEHAVIOR_LABEL = {
     "a": 0,  # Safe Driving
@@ -67,7 +67,7 @@ class HybridModel(nn.Module):
             hidden_size=_LSTM_HIDDEN_SIZE,
             num_layers=_LSTM_NUM_LAYERS,
             batch_first=True,
-            dropout=0.3,
+            dropout=0.4,
             device=_DEVICE
         )
 
@@ -165,6 +165,8 @@ class DisDriveDataset(Dataset):
     def __process_dataset(self):
         """Read dataset data"""
 
+        self.hybrid_model.eval()  # Set model to evaluation mode
+
         print("Processing dataset...")
 
         # Iterate through each behavior
@@ -193,7 +195,7 @@ class DisDriveDataset(Dataset):
                     print(f"Processing {sequence_path}")
 
                     # For every Frame in Sequence Folder
-                    for frame in os.listdir(sequence_path):
+                    for frame in sorted(os.listdir(sequence_path)):
 
                         if frame == "features_temp":  # If iterated file is the features_temp folder, skip
                             continue

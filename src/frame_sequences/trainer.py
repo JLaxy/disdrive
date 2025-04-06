@@ -10,7 +10,7 @@ from tqdm import tqdm
 TRAINING_DATASET_PATH = "./datasets/frame_sequences/train"
 _DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 _EPOCHS = 20  # Number of Epochs
-_LEARNING_RATE = 0.001  # Learning rate for optimizer in training
+_LEARNING_RATE = 0.0001  # Learning rate for optimizer in training
 _WEIGHT_DECAY = 0.0001  # Weight decay for optimizer in training
 _TRAINED_MODEL_SAVE_PATH = "./saved_models"
 _TO_PREPROCESS_DATA = False
@@ -147,4 +147,4 @@ if __name__ == "__main__":
     # __dataloader_debug(dataloader)
 
     train_model(dataloader)
-    save_model_weights("side_disdrive_model.pth")
+    save_model_weights("richard_disdrive_model.pth")

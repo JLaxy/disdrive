@@ -10,7 +10,7 @@ def organize_images_into_folders(source_folder, output_folder):
     images.sort()  # Sort the images (optional, for consistent ordering)
 
     # Define how many images per folder
-    images_per_folder = 20
+    images_per_folder = 10
 
     # Iterate through the images in chunks of `images_per_folder`
     for i in range(0, len(images), images_per_folder):
@@ -32,7 +32,7 @@ def organize_images_into_folders(source_folder, output_folder):
 
 # Example usage
 # Replace with the path to your folder
-source_folder = "E:\\Thesis\\AUC_SAMDD_COMBINED\\Combined View\\Testing\\Look Behind"
+source_folder = "E:\\Thesis\\EQUAL\\Combined View\\Testing\\Drinking"
 # Replace with the path to your desired output folder
-output_folder = "./datasets/frame_sequences/train/h"
+output_folder = "./datasets/frame_sequences/train/f"
 organize_images_into_folders(source_folder, output_folder)
