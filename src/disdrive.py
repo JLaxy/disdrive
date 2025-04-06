@@ -14,31 +14,31 @@ from pynput import keyboard
 _PATH_TO_DB = "./database/disdrive_db.db"
 _WEBSERVER_PATH = "./web_server"
 
+
 def play_sound(file_path: str, channel_id=0):
     """play sound on a specific channel to prevent cutting off other sounds"""
     pygame.init()
     if not pygame.mixer.get_init():
         pygame.mixer.init()
 
-    #Create up to 8 channels (different sounds)
+    # Create up to 8 channels (different sounds)
     if channel_id >= pygame.mixer.get_num_channels():
         pygame.mixer.set_num_channels(channel_id + 1)
 
-    #Get specific channel
+    # Get specific channel
     channel = pygame.mixer.Channel(channel_id)
 
-    #Load and play sound
+    # Load and play sound
     sound = pygame.mixer.Sound(file_path)
     channel.play(sound)
 
-    #Only wait for completion if specifically requested
+    # Only wait for completion if specifically requested
     if channel_id == 0:
         while channel.get_busy():
-            pygame.time.wait(100)  #Check less frequently to reduce CPU usage
+            pygame.time.wait(100)  # Check less frequently to reduce CPU usage
 
-    
 
-async def handle_system_action(websocket_service : WebsocketService, message_handler, action):
+async def handle_system_action(websocket_service: WebsocketService, message_handler, action):
     """Handle system actions"""
     try:
         match action:
@@ -60,12 +60,13 @@ async def handle_system_action(websocket_service : WebsocketService, message_han
                     child.expect(pexpect.EOF)
                 except Exception as e:
                     print(f"Error shutting down system: {e}")
-                    #os.system("sudo shutdown-h now")
+                    # os.system("sudo shutdown-h now")
                 sys.exit(0)
     except Exception as e:
         print(f"Error in handle_system_action: {e}")
     finally:
         await asyncio.create_task(websocket_service.broadcast_settings())
+
 
 def on_key_press(key, websocket_service, hybrid_model):
     """Handle keyboard events"""
@@ -74,21 +75,25 @@ def on_key_press(key, websocket_service, hybrid_model):
             # Create new event loop for async operations
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-            
+
             match key.char.upper():
                 case 'A':
                     print("Start key pressed")
-                    loop.run_until_complete(handle_system_action(websocket_service, hybrid_model, "start_session"))
+                    loop.run_until_complete(handle_system_action(
+                        websocket_service, hybrid_model, "start_session"))
                 case 'B':
                     print("Stop key pressed")
-                    loop.run_until_complete(handle_system_action(websocket_service, hybrid_model, "stop_session"))
+                    loop.run_until_complete(handle_system_action(
+                        websocket_service, hybrid_model, "stop_session"))
                 case 'C':
                     print("Shutdown key pressed")
-                    loop.run_until_complete(handle_system_action(websocket_service, hybrid_model, "shutdown_system"))
-            
+                    loop.run_until_complete(handle_system_action(
+                        websocket_service, hybrid_model, "shutdown_system"))
+
             loop.close()
     except Exception as e:
         print(f"Error handling key press: {e}")
+
 
 async def main():
     print("Starting Disdrive...")
@@ -98,7 +103,7 @@ async def main():
 
     # Load Model
     hybrid_model = DisdriveModel(database_query)
-    
+
     # Create WebSocket Service
     websocket_service = WebsocketService(
         hybrid_model, database_query)
@@ -119,8 +124,9 @@ async def main():
     # Start Frontend
     frontend_process = start_frontend()
 
-    #Startup sounds
-    threading.Thread(target=play_sound, args=("src/assets/startup.mp3", 0), daemon=True).start()
+    # Startup sounds
+    threading.Thread(target=play_sound, args=(
+        "src/assets/startup.mp3", 0), daemon=True).start()
 
     # Start keyboard listener with both services
     keyboard_listener = keyboard.Listener(
