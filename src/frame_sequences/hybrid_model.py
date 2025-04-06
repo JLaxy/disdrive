@@ -6,6 +6,7 @@ import os
 from torch.utils.data import Dataset
 from PIL import Image
 import PIL
+from torchvision import transforms
 
 """Hybrid Model Settings"""
 _MODEL = "ViT-B/16"  # 224x224
@@ -39,6 +40,12 @@ class HybridModel(nn.Module):
         # REQUIRED; Initializing parent class
         super().__init__()
 
+        # Add to model initialization
+        self.augmentation = transforms.Compose([
+            transforms.RandomHorizontalFlip(p=0.3),
+            transforms.ColorJitter(brightness=0.2, contrast=0.2)
+        ])
+
         print("Loading CLIP model...")
 
         # Loading CLIP model
@@ -51,7 +58,7 @@ class HybridModel(nn.Module):
         self.adapter = nn.Sequential(
             nn.Linear(512, 256),
             nn.ReLU(),
-            nn.Dropout(0.4)
+            nn.Dropout(0.5)
         )
 
         # Initalizing LSTM Neural Network
@@ -60,7 +67,7 @@ class HybridModel(nn.Module):
             hidden_size=_LSTM_HIDDEN_SIZE,
             num_layers=_LSTM_NUM_LAYERS,
             batch_first=True,
-            dropout=0.4,
+            dropout=0.3,
             device=_DEVICE
         )
 
@@ -90,8 +97,17 @@ class HybridModel(nn.Module):
             # Create temp folder
             os.makedirs(save_directory)
 
-        preprocessed = self.preprocessor(Image.open(frame_path)).unsqueeze(
+        image = Image.open(frame_path)
+
+        # Apply augmentation before CLIP preprocessing
+        if self.training:
+            image = self.augmentation(image)
+
+        preprocessed = self.preprocessor(image).unsqueeze(
             0).to(_DEVICE)  # Open image, preprocess then save to device
+
+        # preprocessed = self.preprocessor(Image.open(frame_path)).unsqueeze(
+        #     0).to(_DEVICE)  # Open image, preprocess then save to device
 
         with torch.no_grad():
             features = self.clip_model.encode_image(
@@ -131,7 +147,6 @@ class DisDriveDataset(Dataset):
 
         # For every feature in feature_path path
         for feature_file in os.listdir(feature_path):
-
             # Create path of feature
             path = os.path.join(
                 feature_path, feature_file)

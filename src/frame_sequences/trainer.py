@@ -9,8 +9,8 @@ from tqdm import tqdm
 
 TRAINING_DATASET_PATH = "./datasets/frame_sequences/train"
 _DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-_EPOCHS = 10  # Number of Epochs
-_LEARNING_RATE = 0.0001  # Learning rate for optimizer in training
+_EPOCHS = 20  # Number of Epochs
+_LEARNING_RATE = 0.001  # Learning rate for optimizer in training
 _WEIGHT_DECAY = 0.0001  # Weight decay for optimizer in training
 _TRAINED_MODEL_SAVE_PATH = "./saved_models"
 _TO_PREPROCESS_DATA = False
@@ -62,6 +62,11 @@ def train_model(dataloader):
     optimizer = torch.optim.Adam(CLIP_LSTM.parameters(
     ), lr=_LEARNING_RATE, weight_decay=_WEIGHT_DECAY)
 
+    # Add these variables before your training loop
+    best_loss = float('inf')
+    patience = 3
+    patience_counter = 0
+
     for epoch in range(_EPOCHS):  # Cycle each Epoch
 
         # Initialize progress bar
@@ -101,6 +106,18 @@ def train_model(dataloader):
 
             progress_bar.set_postfix(loss=loss.item())
 
+        # Add inside your epoch loop after calculating loss
+        if running_loss/len(dataloader) < best_loss:
+            best_loss = running_loss/len(dataloader)
+            patience_counter = 0
+            save_model_weights("best_disdrive_model.pth")
+        else:
+            patience_counter += 1
+
+        if patience_counter >= patience:
+            print(f"Early stopping at epoch {epoch+1}")
+            break
+
         epoch_accuracy = (correct_predictions / total_samples) * 100
 
         print(
@@ -130,5 +147,4 @@ if __name__ == "__main__":
     # __dataloader_debug(dataloader)
 
     train_model(dataloader)
-
-    save_model_weights("disdrive_model.pth")
+    save_model_weights("side_disdrive_model.pth")
