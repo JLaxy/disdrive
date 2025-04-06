@@ -16,8 +16,8 @@ _NUM_OF_CLASSES = 8
 
 """LSTM Parameters"""
 _LSTM_INPUT_SIZE = 256
-_LSTM_HIDDEN_SIZE = 256
-_LSTM_NUM_LAYERS = 2
+_LSTM_HIDDEN_SIZE = 128
+_LSTM_NUM_LAYERS = 1
 
 _BEHAVIOR_LABEL = {
     "a": 0,  # Safe Driving
@@ -51,7 +51,7 @@ class HybridModel(nn.Module):
         self.adapter = nn.Sequential(
             nn.Linear(512, 256),
             nn.ReLU(),
-            nn.Dropout(0.3)
+            nn.Dropout(0.4)
         )
 
         # Initalizing LSTM Neural Network
@@ -60,7 +60,7 @@ class HybridModel(nn.Module):
             hidden_size=_LSTM_HIDDEN_SIZE,
             num_layers=_LSTM_NUM_LAYERS,
             batch_first=True,
-            dropout=0.3,
+            dropout=0.4,
             device=_DEVICE
         )
 
@@ -131,6 +131,7 @@ class DisDriveDataset(Dataset):
 
         # For every feature in feature_path path
         for feature_file in os.listdir(feature_path):
+
             # Create path of feature
             path = os.path.join(
                 feature_path, feature_file)
