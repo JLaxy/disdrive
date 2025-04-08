@@ -8,7 +8,7 @@ import torch
 
 _DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 _TESTING_DATASET_PATH = "./datasets/frame_sequences/test"
-_TRAINED_MODEL_SAVE_PATH = "./saved_models/richard_disdrive_model.pth"
+_TRAINED_MODEL_SAVE_PATH = "./saved_models/boosted_disdrive_model.pth"
 _TO_PREPROCESS_DATA = False
 _BEHAVIOR_LABELS = ["Safe Driving",
                     "Texting Right",

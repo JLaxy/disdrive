@@ -17,8 +17,8 @@ _NUM_OF_CLASSES = 8
 
 """LSTM Parameters"""
 _LSTM_INPUT_SIZE = 256
-_LSTM_HIDDEN_SIZE = 256
-_LSTM_NUM_LAYERS = 2
+_LSTM_HIDDEN_SIZE = 128
+_LSTM_NUM_LAYERS = 1
 
 _BEHAVIOR_LABEL = {
     "a": 0,  # Safe Driving
@@ -50,7 +50,7 @@ class HybridModel(nn.Module):
 
         # Loading CLIP model
         self.clip_model, self.preprocessor = clip.load(
-            _MODEL, device=_DEVICE, jit=False)
+            _MODEL, device=_DEVICE, jit=True)
 
         print("Loading LSTM model...")
 
@@ -67,7 +67,7 @@ class HybridModel(nn.Module):
             hidden_size=_LSTM_HIDDEN_SIZE,
             num_layers=_LSTM_NUM_LAYERS,
             batch_first=True,
-            dropout=0.4,
+            dropout=0.3,
             device=_DEVICE
         )
 
@@ -122,7 +122,7 @@ class HybridModel(nn.Module):
 class DisDriveDataset(Dataset):
     """The class of the dataset which will be used on the Hybrid Model"""
 
-    def __init__(self, dataset_directory: str, hybrid_model: HybridModel, to_get_features=True):
+    def __init__(self, dataset_directory: str, hybrid_model: HybridModel, to_get_features=True, danger_boost=True):
         """Initilizes dataset"""
         print("Creating dataset...")
 
@@ -134,9 +134,13 @@ class DisDriveDataset(Dataset):
 
         # List of Image-Text Pairs in Tensor form
         self.dataset_data = []  # [(behavior, [IMAGE_SEQUENCE])]
+        self.class_weights = None
+        # If True, boost the weights of dangerous behaviors
+        self.danger_Boost = danger_boost
 
         # Process Dataset
         self.__process_dataset()
+        self.__compute_weights()
 
     def __getitem__(self, index):
         """Returns Dataset Data at specific index"""
@@ -162,10 +166,40 @@ class DisDriveDataset(Dataset):
         """Returns length of dataset"""
         return len(self.dataset_data)
 
+    def get_weights(self):
+        """Returns per-sample weights for WeightedRandomSampler"""
+        return torch.tensor([self.class_weights[behavior]
+                             for behavior, _ in self.dataset_data])
+
+    def __compute_weights(self):
+        class_counts = torch.zeros(_NUM_OF_CLASSES)  # List of class counts
+
+        for behavior, _ in self.dataset_data:
+            class_counts[behavior] += 1  # Increment class count
+
+        weights = 1.0 / (class_counts + 1e-6)  # Inverse of class counts
+
+        if self.danger_Boost:
+            danger_classes = {
+                0: 0.6,   # Stronger suppression for Safe Driving (was 0.8)
+                1: 1.8,   # Texting Right (slight increase from 1.5)
+                2: 1.8,   # Texting Left (slight increase from 1.5)
+                3: 1.3,   # Phone Right (unchanged)
+                4: 1.3,   # Phone Left (unchanged)
+                5: 1.0,   # Drinking (no boost)
+                6: 3.5,   # Head Down (significantly increased from 2.0)
+                7: 2.5    # Look Behind (highest boost, increased from 2.0)
+            }
+        for class_idx, boost_factor in danger_classes.items():
+            weights[class_idx] *= boost_factor
+
+        # Normalize
+        self.class_weights = weights / weights.sum()
+        self.class_weights = torch.clamp(
+            self.class_weights, min=0.01)  # Ensure no zero weights
+
     def __process_dataset(self):
         """Read dataset data"""
-
-        self.hybrid_model.eval()  # Set model to evaluation mode
 
         print("Processing dataset...")
 
@@ -195,7 +229,7 @@ class DisDriveDataset(Dataset):
                     print(f"Processing {sequence_path}")
 
                     # For every Frame in Sequence Folder
-                    for frame in sorted(os.listdir(sequence_path)):
+                    for frame in os.listdir(sequence_path):
 
                         if frame == "features_temp":  # If iterated file is the features_temp folder, skip
                             continue
