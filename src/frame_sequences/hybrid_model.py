@@ -181,14 +181,14 @@ class DisDriveDataset(Dataset):
 
         if self.danger_Boost:
             danger_classes = {
-                0: 0.6,   # Stronger suppression for Safe Driving (was 0.8)
-                1: 1.8,   # Texting Right (slight increase from 1.5)
-                2: 1.8,   # Texting Left (slight increase from 1.5)
-                3: 1.3,   # Phone Right (unchanged)
-                4: 1.3,   # Phone Left (unchanged)
-                5: 1.0,   # Drinking (no boost)
-                6: 3.5,   # Head Down (significantly increased from 2.0)
-                7: 2.5    # Look Behind (highest boost, increased from 2.0)
+                0: 0.5,   # Further reduce safe dominance
+                1: 2.0,   # Increased for Texting Right (address recall drop)
+                2: 1.8,   # Maintain
+                3: 1.3,
+                4: 1.5,   # Slight boost for Phone Left
+                5: 1.0,
+                6: 3.0,   # Slight reduction (now good recall)
+                7: 2.0    # Reduce to improve precision
             }
         for class_idx, boost_factor in danger_classes.items():
             weights[class_idx] *= boost_factor
