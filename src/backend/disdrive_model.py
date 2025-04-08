@@ -15,7 +15,7 @@ import time
 import pygame
 
 # Fix device selection - CORRECTED
-_TRAINED_MODEL_SAVE_PATH = "./saved_models/disdrive_model.pth"
+_TRAINED_MODEL_SAVE_PATH = "./saved_models/boosted_disdrive_model.pth"
 _DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 _BEHAVIOR_LABEL = {
     0: "Safe Driving",
@@ -33,39 +33,41 @@ _FRAME_SKIP = 1  # Process every frame for smoother detection
 _FRAME_WIDTH = 224  # Standard size for model input
 _FRAME_HEIGHT = 224  # Standard size for model input
 _BUFFER_SIZE = 20  # Frames to analyze
-_SLIDING_WINDOW_STEP = 20  # Slide window by this many frames
+_SLIDING_WINDOW_STEP = 5  # Slide window by this many frames
 _MAX_WORKERS = max(4, multiprocessing.cpu_count() - 2)  # Use more CPU cores
 _FEATURE_QUEUE_SIZE = 20  # Larger queue size
 _FRAME_QUEUE_SIZE = 20  # Larger queue size
 
-#Alert settings
-_ALERT_INTERVAL = 1 #Play sound every second
+# Alert settings
+_ALERT_INTERVAL = 1  # Play sound every second
 _ALERT_SOUND_PATH = "./src/assets/alert.mp3"
 
-#Initialize pygame mixer once
+# Initialize pygame mixer once
 pygame.mixer.init()
-    
+
+
 def play_sound(file_path: str, channel_id=0):
     """play sound on a specific channel to prevent cutting off other sounds"""
     pygame.init()
     if not pygame.mixer.get_init():
         pygame.mixer.init()
 
-    #Create up to 8 channels (different sounds)
+    # Create up to 8 channels (different sounds)
     if channel_id >= pygame.mixer.get_num_channels():
         pygame.mixer.set_num_channels(channel_id + 1)
 
-    #Get specific channel
+    # Get specific channel
     channel = pygame.mixer.Channel(channel_id)
 
-    #Load and play sound
+    # Load and play sound
     sound = pygame.mixer.Sound(file_path)
     channel.play(sound)
-    
-    #Only wait for completion if specifically requested
+
+    # Only wait for completion if specifically requested
     if channel_id == 0:
         while channel.get_busy():
-            pygame.time.wait(100)  #Check less frequently to reduce CPU usage
+            pygame.time.wait(100)  # Check less frequently to reduce CPU usage
+
 
 class DisdriveModel:
     """Handles all functionalities related to the Machine Learning Model"""
@@ -82,7 +84,7 @@ class DisdriveModel:
 
         self._configure_threads()
 
-        #Alert tracking variables
+        # Alert tracking variables
         self.last_alert_time = 0
         self.alert_playing = False
         self.unsafe_behavior_detected = False
@@ -341,16 +343,17 @@ class DisdriveModel:
         """Play alert sound continuosly when behavior is unsafe"""
         current_time = time.time()
 
-        #Check if behavior is unsafe
+        # Check if behavior is unsafe
         unsafe_behavior = behavior != "Safe Driving" and behavior != "Detecting..." and behavior != "Error" and behavior != "Detection Paused"
 
-        #Update unsafe behavior status
+        # Update unsafe behavior status
         self.unsafe_behavior_detected = unsafe_behavior
 
-        #Play alert at regular intervals if unsafe behavior continues
+        # Play alert at regular intervals if unsafe behavior continues
         if unsafe_behavior and (current_time - self.last_alert_time >= _ALERT_INTERVAL):
             self.last_alert_time = current_time
-            threading.Thread(target=play_sound, args=(_ALERT_SOUND_PATH, 1), daemon=True).start()
+            threading.Thread(target=play_sound, args=(
+                _ALERT_SOUND_PATH, 1), daemon=True).start()
             print("Alert sound triggered for:", behavior)
 
     async def detection_loop(self):
@@ -469,7 +472,7 @@ class DisdriveModel:
                 # Update shared state for all clients to access
                 self.latest_detection_data["behavior"] = behavior
 
-                #Play continuous alert if behavior is unsafe
+                # Play continuous alert if behavior is unsafe
                 self.play_continuous_alert(behavior)
 
                 # Use a very minimal sleep to yield control
