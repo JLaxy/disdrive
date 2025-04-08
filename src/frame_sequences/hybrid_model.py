@@ -50,7 +50,7 @@ class HybridModel(nn.Module):
 
         # Loading CLIP model
         self.clip_model, self.preprocessor = clip.load(
-            _MODEL, device=_DEVICE, jit=True)
+            _MODEL, device=_DEVICE, jit=False)
 
         print("Loading LSTM model...")
 
@@ -181,7 +181,7 @@ class DisDriveDataset(Dataset):
 
         if self.danger_Boost:
             danger_classes = {
-                0: 0.8,   # Stronger suppression for Safe Driving (was 0.8)
+                0: 1.0,   # Stronger suppression for Safe Driving (was 0.8)
                 1: 1.8,   # Texting Right (slight increase from 1.5)
                 2: 1.8,   # Texting Left (slight increase from 1.5)
                 3: 1.3,   # Phone Right (unchanged)

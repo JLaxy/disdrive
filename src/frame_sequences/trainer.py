@@ -13,7 +13,7 @@ _EPOCHS = 20  # Number of Epochs
 _LEARNING_RATE = 0.0001  # Learning rate for optimizer in training
 _WEIGHT_DECAY = 0.0001  # Weight decay for optimizer in training
 _TRAINED_MODEL_SAVE_PATH = "./saved_models"
-_TO_PREPROCESS_DATA = False
+_TO_PREPROCESS_DATA = True
 _TO_DANGER_BOOST = True  # Boosting the danger level of the data
 _NUM_OF_CLASSES = 8  # Number of classes in the dataset
 
