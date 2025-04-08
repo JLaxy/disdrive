@@ -137,6 +137,7 @@ class DisdriveModel:
         self.frame_buffer = deque(maxlen=_BUFFER_SIZE)
         self.latest_detection_data = {
             "frame": None, "behavior": "Detecting...", "fps": "0.0"}
+        self.probabilities = [0] * len(_BEHAVIOR_LABEL)
 
     def _initialize_cameras(self):
         """Configures camera"""
@@ -333,8 +334,16 @@ class DisdriveModel:
 
                 # Run model inference
                 output = self.model(sequence_tensor)
-                output = torch.argmax(output, dim=1).item()
-                return _BEHAVIOR_LABEL[output]
+                
+                # Get probabilities using softmax
+                probabilities = torch.nn.functional.softmax(output, dim=1)[0]
+                probabilities = probabilities.cpu().numpy()
+                
+                # Get predicted class
+                predicted_class = torch.argmax(output, dim=1).item()
+                behavior = _BEHAVIOR_LABEL[predicted_class]
+
+                return behavior, probabilities
         except Exception as e:
             print(f"Error processing frame buffer: {e}")
             return "Error"
@@ -404,6 +413,15 @@ class DisdriveModel:
                 # display_frame = cv2.resize(frame, (320, 240))
                 # _, buffer = cv2.imencode('.jpg', display_frame, [
                 #                          cv2.IMWRITE_JPEG_QUALITY, 70])   Z
+
+                # Draw probabilities on frame
+                y_offset = 30
+                for i, prob in enumerate(self.probabilities):
+                    text = f"{_BEHAVIOR_LABEL[i]}: {prob:.2%}"
+                    cv2.putText(frame, text, (10, y_offset), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
+                    y_offset += 20
+
                 _, buffer = cv2.imencode('.jpg', frame, [
                                          cv2.IMWRITE_JPEG_QUALITY, 70])
                 frame_bytes = base64.b64encode(buffer).decode('utf-8')
@@ -457,11 +475,15 @@ class DisdriveModel:
                 if (len(self.frame_buffer) >= _BUFFER_SIZE and
                         self.window_slide_counter >= _SLIDING_WINDOW_STEP):
                     self.window_slide_counter = 0  # Reset counter
-                    new_behavior = await self.process_frame_buffer()
+                    new_behavior, probabilities = await self.process_frame_buffer()
 
                     # Update behavior if changed
                     if new_behavior != "Detecting..." and new_behavior != behavior:
                         behavior = new_behavior
+
+                        # Add probabilities to display on frame
+                        if probabilities is not None:
+                            self.probabilities = probabilities
 
                         # Log behavior change
                         if self.to_log:
