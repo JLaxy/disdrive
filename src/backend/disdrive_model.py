@@ -20,12 +20,10 @@ _DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 _BEHAVIOR_LABEL = {
     0: "Safe Driving",
     1: "Texting",
-    2: "Texting",
-    3: "Talking using Phone",
-    4: "Talking using Phone",
-    5: "Drinking",
-    6: "Head Down",
-    7: "Look Behind",
+    2: "Talking using Phone",
+    3: "Drinking",
+    4: "Head Down",
+    5: "Look Behind",
 }
 
 # Optimized configuration for ROCM/APU performance
@@ -419,7 +417,7 @@ class DisdriveModel:
                 for i, prob in enumerate(self.probabilities):
                     text = f"{_BEHAVIOR_LABEL[i]}: {prob:.2%}"
                     cv2.putText(frame, text, (10, y_offset), 
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
                     y_offset += 20
 
                 _, buffer = cv2.imencode('.jpg', frame, [

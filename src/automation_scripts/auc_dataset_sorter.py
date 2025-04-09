@@ -1,5 +1,12 @@
 import os
 import shutil
+import re
+
+
+def natural_sort_key(s):
+    """Function to generate key for natural sorting of strings with numbers"""
+    return [int(text) if text.isdigit() else text.lower()
+            for text in re.split('([0-9]+)', s)]
 
 
 def organize_images_into_folders(source_folder, output_folder):
@@ -7,10 +14,10 @@ def organize_images_into_folders(source_folder, output_folder):
     # Get a list of all image files in the source folder
     images = [file for file in os.listdir(source_folder) if file.lower().endswith(
         (".png", ".jpg", ".jpeg", ".gif", ".bmp"))]
-    images.sort()  # Sort the images (optional, for consistent ordering)
+    images.sort(key=natural_sort_key)  # Sort the images using natural sort
 
     # Define how many images per folder
-    images_per_folder = 10
+    images_per_folder = 20
 
     # Iterate through the images in chunks of `images_per_folder`
     for i in range(0, len(images), images_per_folder):
@@ -26,13 +33,10 @@ def organize_images_into_folders(source_folder, output_folder):
             dest_path = os.path.join(new_folder_path, image)
             shutil.copy(src_path, dest_path)
 
-    print(f"Organized {len(images)} images into folders of {
-          images_per_folder} at {output_folder}.")
+    print(f"Organized {len(images)} images into folders of {images_per_folder} at {output_folder}.")
 
 
 # Example usage
-# Replace with the path to your folder
-source_folder = "E:\\Thesis\\EQUAL\\Combined View\\Testing\\Drinking"
-# Replace with the path to your desired output folder
-output_folder = "./datasets/frame_sequences/train/f"
+source_folder = "D:\\zek\\4th yr comsci\\CS 401 (thesis 2)\\git\\datasetextraction\\Combined View\\Look Behind"
+output_folder = "./datasets/frame_sequences/f"
 organize_images_into_folders(source_folder, output_folder)

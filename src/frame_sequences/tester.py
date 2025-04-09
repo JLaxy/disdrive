@@ -5,16 +5,15 @@ from torch.utils.data import DataLoader
 from sklearn.metrics import classification_report, confusion_matrix, ConfusionMatrixDisplay, accuracy_score
 import matplotlib.pyplot as plt
 import torch
+from dataset_splitter import create_train_test_split
 
 _DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-_TESTING_DATASET_PATH = "./datasets/frame_sequences/test"
+_DATASET_PATH = "./datasets/frame_sequences"
 _TRAINED_MODEL_SAVE_PATH = "./saved_models/boosted_disdrive_model.pth"
 _TO_PREPROCESS_DATA = True
 _BEHAVIOR_LABELS = ["Safe Driving",
-                    "Texting Right",
-                    "Texting Left",
-                    "Talking using Phone Right",
-                    "Talking using Phone Left",
+                    "Texting",
+                    "Talking using Phone",
                     "Drinking",
                     "Head Down",
                     "Look Behind"]
@@ -71,11 +70,13 @@ if __name__ == "__main__":
     # Move Hybrid Model to device
     CLIP_LSTM.to(_DEVICE)
 
-    # Create Dataset
-    dataset = DisDriveDataset(_TESTING_DATASET_PATH,
+    full_dataset = DisDriveDataset(_DATASET_PATH,
                               CLIP_LSTM, _TO_PREPROCESS_DATA)
+
+    _, test_dataset = create_train_test_split(full_dataset)
+
     # Initialize Dataloader
-    dataloader = DataLoader(dataset, batch_size=32,
+    dataloader = DataLoader(test_dataset, batch_size=32,
                             shuffle=False, pin_memory=True)
 
     test_model(dataloader)  # Test

@@ -13,7 +13,7 @@ _MODEL = "ViT-B/16"  # 224x224
 # Automatically changes to GPU if available
 _DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 """Number of Distracted Driving Behaviors"""
-_NUM_OF_CLASSES = 8
+_NUM_OF_CLASSES = 6
 
 """LSTM Parameters"""
 _LSTM_INPUT_SIZE = 256
@@ -22,13 +22,11 @@ _LSTM_NUM_LAYERS = 1
 
 _BEHAVIOR_LABEL = {
     "a": 0,  # Safe Driving
-    "b": 1,  # Texting Right
-    "c": 2,  # Texting Left
-    "d": 3,  # Talking using Phone Right
-    "e": 4,  # Talking using Phone Left
-    "f": 5,  # Drinking
-    "g": 6,  # Head Down
-    "h": 7,  # Look Behind
+    "b": 1,  # Texting
+    "c": 2,  # Talking using Phone
+    "d": 3,  # Drinking
+    "e": 4,  # Head Down
+    "f": 5,  # Look Behind
 }
 
 
@@ -40,10 +38,28 @@ class HybridModel(nn.Module):
         # REQUIRED; Initializing parent class
         super().__init__()
 
-        # Add to model initialization
+        # # Add to model initialization
+        # self.augmentation = transforms.Compose([
+        #     transforms.RandomHorizontalFlip(p=0.3),
+        #     transforms.ColorJitter(brightness=0.2, contrast=0.2)
+        # ])
+
+        # Safer parameters if original ones cause issues
         self.augmentation = transforms.Compose([
             transforms.RandomHorizontalFlip(p=0.3),
-            transforms.ColorJitter(brightness=0.2, contrast=0.2)
+            transforms.ColorJitter(
+                brightness=0.1,  # reduced from 0.2
+                contrast=0.1,    # reduced from 0.2
+                saturation=0.1,  # reduced from 0.2
+                hue=0.05        # reduced from 0.1
+            ),
+            transforms.RandomAffine(
+                degrees=(-3, 3),  # reduced from (-5, 5)
+                translate=(0.05, 0.05),  # reduced from (0.1, 0.1)
+                scale=(0.95, 1.05)  # reduced from (0.9, 1.1)
+            ),
+            transforms.RandomPerspective(distortion_scale=0.1, p=0.2),  # reduced values
+            transforms.RandomGrayscale(p=0.05)  # reduced from 0.1
         ])
 
         print("Loading CLIP model...")
@@ -122,7 +138,7 @@ class HybridModel(nn.Module):
 class DisDriveDataset(Dataset):
     """The class of the dataset which will be used on the Hybrid Model"""
 
-    def __init__(self, dataset_directory: str, hybrid_model: HybridModel, to_get_features=True, danger_boost=True):
+    def __init__(self, dataset_directory: str, hybrid_model: HybridModel, to_get_features=True):
         """Initilizes dataset"""
         print("Creating dataset...")
 
@@ -134,13 +150,9 @@ class DisDriveDataset(Dataset):
 
         # List of Image-Text Pairs in Tensor form
         self.dataset_data = []  # [(behavior, [IMAGE_SEQUENCE])]
-        self.class_weights = None
-        # If True, boost the weights of dangerous behaviors
-        self.danger_Boost = danger_boost
 
         # Process Dataset
         self.__process_dataset()
-        self.__compute_weights()
 
     def __getitem__(self, index):
         """Returns Dataset Data at specific index"""
@@ -166,38 +178,6 @@ class DisDriveDataset(Dataset):
         """Returns length of dataset"""
         return len(self.dataset_data)
 
-    def get_weights(self):
-        """Returns per-sample weights for WeightedRandomSampler"""
-        return torch.tensor([self.class_weights[behavior]
-                             for behavior, _ in self.dataset_data])
-
-    def __compute_weights(self):
-        class_counts = torch.zeros(_NUM_OF_CLASSES)  # List of class counts
-
-        for behavior, _ in self.dataset_data:
-            class_counts[behavior] += 1  # Increment class count
-
-        weights = 1.0 / (class_counts + 1e-6)  # Inverse of class counts
-
-        if self.danger_Boost:
-            danger_classes = {
-                0: 1.0,   # Stronger suppression for Safe Driving (was 0.8)
-                1: 1.8,   # Texting Right (slight increase from 1.5)
-                2: 1.8,   # Texting Left (slight increase from 1.5)
-                3: 1.3,   # Phone Right (unchanged)
-                4: 1.3,   # Phone Left (unchanged)
-                5: 1.0,   # Drinking (no boost)
-                6: 3.0,   # Head Down (significantly increased from 2.0)
-                7: 2.5    # Look Behind (highest boost, increased from 2.0)
-            }
-        for class_idx, boost_factor in danger_classes.items():
-            weights[class_idx] *= boost_factor
-
-        # Normalize
-        self.class_weights = weights / weights.sum()
-        self.class_weights = torch.clamp(
-            self.class_weights, min=0.01)  # Ensure no zero weights
-
     def __process_dataset(self):
         """Read dataset data"""
 
@@ -215,8 +195,12 @@ class DisDriveDataset(Dataset):
 
             # If current path is a directory; contains folders
             if os.path.isdir(behavior_path):
+
+                sequence_folders = os.listdir(behavior_path)
+                sequence_folders = sorted(sequence_folders, key=lambda x: int(x))  # Sort numerically
+
                 # For every grouped sequence in current behavior folder
-                for sequence_folder in os.listdir(behavior_path):
+                for sequence_folder in sequence_folders:
 
                     # print(f"Sequence: {behavior}, {sequence_folder}")
 
@@ -225,11 +209,15 @@ class DisDriveDataset(Dataset):
                         behavior_path, sequence_folder)
 
                     frame_list = []  # List of frames in a sequence of behavior
-
+                    
                     print(f"Processing {sequence_path}")
 
+                    # Get all frames and sort them alphanumerically
+                    frames = os.listdir(sequence_path)
+                    frames = sorted(frames, key=lambda x: x if x == "features_temp" else x.lower())
+
                     # For every Frame in Sequence Folder
-                    for frame in os.listdir(sequence_path):
+                    for frame in frames:
 
                         if frame == "features_temp":  # If iterated file is the features_temp folder, skip
                             continue

@@ -6,15 +6,15 @@ import torch.nn as nn
 import torch
 import os
 from tqdm import tqdm
+from dataset_splitter import create_train_test_split
 
-TRAINING_DATASET_PATH = "./datasets/frame_sequences/train"
+_DATASET_PATH = "./datasets/frame_sequences"
 _DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 _EPOCHS = 20  # Number of Epochs
 _LEARNING_RATE = 0.0001  # Learning rate for optimizer in training
 _WEIGHT_DECAY = 0.0001  # Weight decay for optimizer in training
 _TRAINED_MODEL_SAVE_PATH = "./saved_models"
 _TO_PREPROCESS_DATA = True
-_TO_DANGER_BOOST = True  # Boosting the danger level of the data
 _NUM_OF_CLASSES = 8  # Number of classes in the dataset
 
 
@@ -163,18 +163,20 @@ if __name__ == "__main__":
     CLIP_LSTM: HybridModel = HybridModel()
     CLIP_LSTM.to(_DEVICE)  # Move Hybrid Model to device
 
-    dataset = DisDriveDataset(TRAINING_DATASET_PATH,
-                              CLIP_LSTM, _TO_PREPROCESS_DATA, _TO_DANGER_BOOST)
+    full_dataset = DisDriveDataset(_DATASET_PATH,
+                              CLIP_LSTM, _TO_PREPROCESS_DATA)
 
-    weights = dataset.get_weights()
-    print(f"Length: {len(weights)}")
-    sampler = torch.utils.data.WeightedRandomSampler(
-        weights=weights, num_samples=len(weights), replacement=True)
+    train_dataset, test_dataset = create_train_test_split(full_dataset)
 
-    dataloader = DataLoader(dataset, batch_size=32,
-                            pin_memory=True, sampler=sampler)
+    print(f"Total dataset size: {len(full_dataset)}")
+    print(f"Training set size: {len(train_dataset)}")
+    print(f"Test set size: {len(test_dataset)}")
+
+
+    train_dataloader = DataLoader(train_dataset, batch_size=64,
+                            pin_memory=True)
 
     # __dataloader_debug(dataloader)
 
-    train_model(dataloader)
-    save_model_weights("boosted_disdrive_model.pth")
+    train_model(train_dataloader)
+    save_model_weights("refined_disdrive_model.pth")
