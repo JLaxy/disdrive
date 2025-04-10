@@ -9,8 +9,8 @@ from dataset_splitter import create_train_test_split
 
 _DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 _DATASET_PATH = "./datasets/frame_sequences"
-_TRAINED_MODEL_SAVE_PATH = "./saved_models/boosted_disdrive_model.pth"
-_TO_PREPROCESS_DATA = True
+_TRAINED_MODEL_SAVE_PATH = "./saved_models/refined_disdrive_model.pth"
+_TO_PREPROCESS_DATA = False
 _BEHAVIOR_LABELS = ["Safe Driving",
                     "Texting",
                     "Talking using Phone",
@@ -76,7 +76,7 @@ if __name__ == "__main__":
     _, test_dataset = create_train_test_split(full_dataset)
 
     # Initialize Dataloader
-    dataloader = DataLoader(test_dataset, batch_size=32,
+    dataloader = DataLoader(test_dataset, batch_size=64,
                             shuffle=False, pin_memory=True)
 
     test_model(dataloader)  # Test

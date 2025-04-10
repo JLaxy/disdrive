@@ -1,3 +1,4 @@
+import random
 import clip
 import numpy
 import torch
@@ -44,23 +45,35 @@ class HybridModel(nn.Module):
         #     transforms.ColorJitter(brightness=0.2, contrast=0.2)
         # ])
 
-        # Safer parameters if original ones cause issues
-        self.augmentation = transforms.Compose([
-            transforms.RandomHorizontalFlip(p=0.3),
-            transforms.ColorJitter(
-                brightness=0.1,  # reduced from 0.2
-                contrast=0.1,    # reduced from 0.2
-                saturation=0.1,  # reduced from 0.2
-                hue=0.05        # reduced from 0.1
-            ),
-            transforms.RandomAffine(
-                degrees=(-3, 3),  # reduced from (-5, 5)
-                translate=(0.05, 0.05),  # reduced from (0.1, 0.1)
-                scale=(0.95, 1.05)  # reduced from (0.9, 1.1)
-            ),
-            transforms.RandomPerspective(distortion_scale=0.1, p=0.2),  # reduced values
-            transforms.RandomGrayscale(p=0.05)  # reduced from 0.1
-        ])
+        # # Safer parameters if original ones cause issues
+        # self.augmentation = transforms.Compose([
+        #     transforms.RandomHorizontalFlip(p=0.3),
+        #     transforms.ColorJitter(
+        #         brightness=0.1,  # reduced from 0.2
+        #         contrast=0.1,    # reduced from 0.2
+        #         saturation=0.1,  # reduced from 0.2
+        #         hue=0.05        # reduced from 0.1
+        #     ),
+        #     transforms.RandomAffine(
+        #         degrees=(-3, 3),  # reduced from (-5, 5)
+        #         translate=(0.05, 0.05),  # reduced from (0.1, 0.1)
+        #         scale=(0.95, 1.05)  # reduced from (0.9, 1.1)
+        #     ),
+        #     transforms.RandomPerspective(distortion_scale=0.1, p=0.2),  # reduced values
+        #     transforms.RandomGrayscale(p=0.05)  # reduced from 0.1
+        # ])
+
+        self.current_sequence_id = None
+        self.sequence_params = {
+            'flip': False,
+            'brightness': 0.0,
+            'contrast': 0.0,
+            'saturation': 0.0,
+            'hue': 0.0,
+            'angle': 0.0,
+            'translate': (0.0, 0.0),
+            'scale': 1.0
+        }
 
         print("Loading CLIP model...")
 
@@ -105,19 +118,29 @@ class HybridModel(nn.Module):
 
         return output
 
-    def preprocess(self, save_directory: str, frame_path: str, frame_name: str):
-        """Preprocess image then save to disk"""
-
-        # If temp folder for feature does not exist
+    def preprocess(self, save_directory: str, frame_path: str, frame_name: str, sequence_id: str = None):
+        """
+        Preprocess image then save to disk
+        Args:
+            save_directory: Directory to save processed features
+            frame_path: Path to the frame image
+            frame_name: Name of the frame file
+            sequence_id: Identifier for the sequence this frame belongs to
+        """
         if not os.path.exists(save_directory):
-            # Create temp folder
             os.makedirs(save_directory)
 
         image = Image.open(frame_path)
 
         # Apply augmentation before CLIP preprocessing
         if self.training:
-            image = self.augmentation(image)
+            # If this is a new sequence, generate new augmentation parameters
+            if sequence_id != self.current_sequence_id:
+                self.current_sequence_id = sequence_id
+                self._reset_sequence_params()
+            
+            # Apply consistent augmentation
+            image = self._apply_sequence_augmentation(image)
 
         preprocessed = self.preprocessor(image).unsqueeze(
             0).to(_DEVICE)  # Open image, preprocess then save to device
@@ -133,6 +156,42 @@ class HybridModel(nn.Module):
         features = features.squeeze(0).cpu().numpy()
         numpy.save(os.path.join(save_directory, frame_name.replace(".jpg", "")),
                    features)  # Save feature to disk
+
+    def _reset_sequence_params(self):
+        """Reset augmentation parameters for new sequence with more robust values"""
+        self.sequence_params = {
+            'flip': random.random() < 0.5,  # Increased from 0.3
+            'brightness': random.uniform(-0.2, 0.2),  # Increased from ±0.1
+            'contrast': random.uniform(-0.2, 0.2),    # Increased from ±0.1
+            'saturation': random.uniform(-0.2, 0.2),  # Increased from ±0.1
+            'hue': random.uniform(-0.1, 0.1),        # Increased from ±0.05
+            'angle': random.uniform(-5, 5),          # Increased from ±3
+            'translate': (
+                random.uniform(-0.1, 0.1),           # Increased from ±0.05
+                random.uniform(-0.1, 0.1)
+            ),
+            'scale': random.uniform(0.9, 1.1)        # Increased from 0.95-1.05
+        }
+
+    def _apply_sequence_augmentation(self, image):
+        """Apply consistent augmentation to frame"""
+        if self.sequence_params['flip']:
+            image = transforms.functional.hflip(image)
+        
+        image = transforms.functional.adjust_brightness(image, 1 + self.sequence_params['brightness'])
+        image = transforms.functional.adjust_contrast(image, 1 + self.sequence_params['contrast'])
+        image = transforms.functional.adjust_saturation(image, 1 + self.sequence_params['saturation'])
+        image = transforms.functional.adjust_hue(image, self.sequence_params['hue'])
+        
+        image = transforms.functional.affine(
+            image,
+            angle=self.sequence_params['angle'],
+            translate=self.sequence_params['translate'],
+            scale=self.sequence_params['scale'],
+            shear=0
+        )
+        
+        return image
 
 
 class DisDriveDataset(Dataset):
@@ -230,9 +289,9 @@ class DisDriveDataset(Dataset):
 
                         # If to get features; saves features to disk if True
                         if self.to_get_features:
-                            # Preprocess then save to disk
+                            # Pass sequence_folder as sequence_id
                             self.hybrid_model.preprocess(
-                                save_path, frame_path, frame)
+                                save_path, frame_path, frame, sequence_id=sequence_folder)
 
                     self.dataset_data.append(
                         (behavior, save_path))  # Add to dataset_data
