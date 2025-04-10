@@ -15,7 +15,7 @@ import time
 import pygame
 
 # Fix device selection - CORRECTED
-_TRAINED_MODEL_SAVE_PATH = "./saved_models/boosted_disdrive_model.pth"
+_TRAINED_MODEL_SAVE_PATH = "./saved_models/refined_disdrive_model.pth"
 _DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 _BEHAVIOR_LABEL = {
     0: "Safe Driving",
@@ -31,7 +31,7 @@ _FRAME_SKIP = 1  # Process every frame for smoother detection
 _FRAME_WIDTH = 224  # Standard size for model input
 _FRAME_HEIGHT = 224  # Standard size for model input
 _BUFFER_SIZE = 20  # Frames to analyze
-_SLIDING_WINDOW_STEP = 5  # Slide window by this many frames
+_SLIDING_WINDOW_STEP = 3  # Slide window by this many frames
 _MAX_WORKERS = max(4, multiprocessing.cpu_count() - 2)  # Use more CPU cores
 _FEATURE_QUEUE_SIZE = 20  # Larger queue size
 _FRAME_QUEUE_SIZE = 20  # Larger queue size
@@ -332,11 +332,11 @@ class DisdriveModel:
 
                 # Run model inference
                 output = self.model(sequence_tensor)
-                
+
                 # Get probabilities using softmax
                 probabilities = torch.nn.functional.softmax(output, dim=1)[0]
                 probabilities = probabilities.cpu().numpy()
-                
+
                 # Get predicted class
                 predicted_class = torch.argmax(output, dim=1).item()
                 behavior = _BEHAVIOR_LABEL[predicted_class]
@@ -416,8 +416,8 @@ class DisdriveModel:
                 y_offset = 30
                 for i, prob in enumerate(self.probabilities):
                     text = f"{_BEHAVIOR_LABEL[i]}: {prob:.2%}"
-                    cv2.putText(frame, text, (10, y_offset), 
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+                    cv2.putText(frame, text, (10, y_offset),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
                     y_offset += 20
 
                 _, buffer = cv2.imencode('.jpg', frame, [
