@@ -7,6 +7,7 @@ from pathlib import Path
 import os
 from datetime import datetime
 from behaviors import Behaviors
+from backend.pdf_download import handle_pdf_request
 
 # Initialize FastAPI app
 app = FastAPI()
@@ -51,7 +52,6 @@ manager = ConnectionManager()
 
 # Initialize database with tables if they don't exist
 
-
 def init_db():
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
@@ -80,7 +80,6 @@ def init_db():
 # Initialize the database
 init_db()
 
-
 @app.websocket("/ws/logs")
 async def get_all_logs(websocket: WebSocket):
     await manager.connect(websocket)
@@ -108,7 +107,6 @@ async def get_all_logs(websocket: WebSocket):
     except WebSocketDisconnect:
         manager.disconnect(websocket)
         print(f"Client disconnected")
-
 
 @app.websocket("/ws/logs/{session_id}")
 async def get_session_details(websocket: WebSocket, session_id: int):

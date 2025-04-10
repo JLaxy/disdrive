@@ -50,7 +50,7 @@ class HybridModel(nn.Module):
 
         # Loading CLIP model
         self.clip_model, self.preprocessor = clip.load(
-            _MODEL, device=_DEVICE, jit=True)
+            _MODEL, device=_DEVICE, jit=False)
 
         print("Loading LSTM model...")
 
