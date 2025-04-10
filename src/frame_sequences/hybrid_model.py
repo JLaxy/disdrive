@@ -18,8 +18,8 @@ _NUM_OF_CLASSES = 6
 
 """LSTM Parameters"""
 _LSTM_INPUT_SIZE = 256
-_LSTM_HIDDEN_SIZE = 128
-_LSTM_NUM_LAYERS = 1
+_LSTM_HIDDEN_SIZE = 256
+_LSTM_NUM_LAYERS = 2
 
 _BEHAVIOR_LABEL = {
     "a": 0,  # Safe Driving
@@ -87,7 +87,7 @@ class HybridModel(nn.Module):
         self.adapter = nn.Sequential(
             nn.Linear(512, 256),
             nn.ReLU(),
-            nn.Dropout(0.5)
+            nn.Dropout(0.3)
         )
 
         # Initalizing LSTM Neural Network
@@ -133,12 +133,13 @@ class HybridModel(nn.Module):
         image = Image.open(frame_path)
 
         # Apply augmentation before CLIP preprocessing
-        if self.training:
+        # if self.training:
+        if False:  # Disable augmentation during training for consistency
             # If this is a new sequence, generate new augmentation parameters
             if sequence_id != self.current_sequence_id:
                 self.current_sequence_id = sequence_id
                 self._reset_sequence_params()
-            
+
             # Apply consistent augmentation
             image = self._apply_sequence_augmentation(image)
 
@@ -177,12 +178,16 @@ class HybridModel(nn.Module):
         """Apply consistent augmentation to frame"""
         if self.sequence_params['flip']:
             image = transforms.functional.hflip(image)
-        
-        image = transforms.functional.adjust_brightness(image, 1 + self.sequence_params['brightness'])
-        image = transforms.functional.adjust_contrast(image, 1 + self.sequence_params['contrast'])
-        image = transforms.functional.adjust_saturation(image, 1 + self.sequence_params['saturation'])
-        image = transforms.functional.adjust_hue(image, self.sequence_params['hue'])
-        
+
+        image = transforms.functional.adjust_brightness(
+            image, 1 + self.sequence_params['brightness'])
+        image = transforms.functional.adjust_contrast(
+            image, 1 + self.sequence_params['contrast'])
+        image = transforms.functional.adjust_saturation(
+            image, 1 + self.sequence_params['saturation'])
+        image = transforms.functional.adjust_hue(
+            image, self.sequence_params['hue'])
+
         image = transforms.functional.affine(
             image,
             angle=self.sequence_params['angle'],
@@ -190,7 +195,7 @@ class HybridModel(nn.Module):
             scale=self.sequence_params['scale'],
             shear=0
         )
-        
+
         return image
 
 
@@ -256,7 +261,8 @@ class DisDriveDataset(Dataset):
             if os.path.isdir(behavior_path):
 
                 sequence_folders = os.listdir(behavior_path)
-                sequence_folders = sorted(sequence_folders, key=lambda x: int(x))  # Sort numerically
+                sequence_folders = sorted(
+                    sequence_folders, key=lambda x: int(x))  # Sort numerically
 
                 # For every grouped sequence in current behavior folder
                 for sequence_folder in sequence_folders:
@@ -268,12 +274,13 @@ class DisDriveDataset(Dataset):
                         behavior_path, sequence_folder)
 
                     frame_list = []  # List of frames in a sequence of behavior
-                    
+
                     print(f"Processing {sequence_path}")
 
                     # Get all frames and sort them alphanumerically
                     frames = os.listdir(sequence_path)
-                    frames = sorted(frames, key=lambda x: x if x == "features_temp" else x.lower())
+                    frames = sorted(frames, key=lambda x: x if x ==
+                                    "features_temp" else x.lower())
 
                     # For every Frame in Sequence Folder
                     for frame in frames:

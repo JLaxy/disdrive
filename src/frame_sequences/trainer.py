@@ -1,18 +1,19 @@
 """Trainer of the Distracted Driving Behavior Detector using CLIP and LSTM"""
 
 from hybrid_model import DisDriveDataset, HybridModel
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, WeightedRandomSampler
 import torch.nn as nn
 import torch
 import os
 from tqdm import tqdm
 from dataset_splitter import create_train_test_split
+import numpy as np
 
 _DATASET_PATH = "./datasets/frame_sequences"
 _DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-_EPOCHS = 20  # Number of Epochs
+_EPOCHS = 12  # Number of Epochs
 _LEARNING_RATE = 0.0001  # Learning rate for optimizer in training
-_WEIGHT_DECAY = 0.0001  # Weight decay for optimizer in training
+_WEIGHT_DECAY = 0.00001  # Weight decay for optimizer in training
 _TRAINED_MODEL_SAVE_PATH = "./saved_models"
 _TO_PREPROCESS_DATA = False
 _NUM_OF_CLASSES = 6  # Number of classes in the dataset
@@ -54,6 +55,27 @@ def __dataloader_debug(dataloader):
             break
 
         break
+
+
+def create_balanced_sampler(dataset):
+    """Creates a balanced sampler for the dataloader"""
+    labels = []
+    for behavior, _ in dataset:
+        labels.append(behavior)
+
+    # Calculate class weights
+    class_counts = np.bincount(labels)
+    total_samples = len(labels)
+    class_weights = [total_samples/class_counts[i]
+                     for i in range(len(class_counts))]
+
+    # Assign weights to samples
+    sample_weights = [class_weights[label] for label in labels]
+
+    # Create sampler
+    sampler = WeightedRandomSampler(
+        sample_weights, len(sample_weights), replacement=True)
+    return sampler
 
 
 def train_model(dataloader):
@@ -122,6 +144,13 @@ def train_model(dataloader):
                 class_correct[i] += (predicted[mask] == b_batch[mask]).sum()
                 class_total[i] += mask.sum()
 
+        # Update weights based on per-class accuracy at end of each epoch
+        if epoch > 0:  # After first epoch
+            accuracies = class_correct / class_total
+            # Inverse of accuracy as weight (normalized)
+            weights = (1 - accuracies) / (1 - accuracies).sum()
+            criterion = nn.CrossEntropyLoss(weight=weights)
+
         # Add inside your epoch loop after calculating loss
         if running_loss/len(dataloader) < best_loss:
             best_loss = running_loss/len(dataloader)
@@ -164,7 +193,7 @@ if __name__ == "__main__":
     CLIP_LSTM.to(_DEVICE)  # Move Hybrid Model to device
 
     full_dataset = DisDriveDataset(_DATASET_PATH,
-                              CLIP_LSTM, _TO_PREPROCESS_DATA)
+                                   CLIP_LSTM, _TO_PREPROCESS_DATA)
 
     train_dataset, test_dataset = create_train_test_split(full_dataset)
 
@@ -172,9 +201,13 @@ if __name__ == "__main__":
     print(f"Training set size: {len(train_dataset)}")
     print(f"Test set size: {len(test_dataset)}")
 
-
-    train_dataloader = DataLoader(train_dataset, batch_size=64,
-                            pin_memory=True)
+    train_sampler = create_balanced_sampler(train_dataset)
+    train_dataloader = DataLoader(
+        train_dataset,
+        batch_size=64,
+        sampler=train_sampler,
+        pin_memory=True
+    )
 
     # __dataloader_debug(dataloader)
 
