@@ -9,7 +9,7 @@ from dataset_splitter import create_train_test_split, load_split_indices
 
 _DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 _DATASET_PATH = "./datasets/frame_sequences"
-_TRAINED_MODEL_SAVE_PATH = "./saved_models/refined_disdrive_model.pth"
+_TRAINED_MODEL_SAVE_PATH = "./saved_models/final_model.pth"
 _TO_PREPROCESS_DATA = False
 _BEHAVIOR_LABELS = ["Safe Driving",
                     "Texting",

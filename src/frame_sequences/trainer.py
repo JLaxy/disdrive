@@ -56,99 +56,178 @@ def __dataloader_debug(dataloader):
         break
 
 
-def train_model(dataloader):
-    """Trains Hybrid Model using dataset"""
+def calculate_class_metrics(true_labels, predicted_labels, num_classes):
+    """Calculate per-class accuracy"""
+    class_correct = torch.zeros(num_classes)
+    class_total = torch.zeros(num_classes)
+    
+    for t, p in zip(true_labels, predicted_labels):
+        if t == p:
+            class_correct[t] += 1
+        class_total[t] += 1
+    
+    # Avoid division by zero
+    class_accuracies = torch.where(
+        class_total != 0, 
+        100.0 * class_correct / class_total,
+        torch.tensor(0.0)
+    )
+    
+    return class_accuracies
+
+
+def train_model(train_dataloader, val_dataloader):
+    """Trains Hybrid Model using dataset with validation"""
     CLIP_LSTM.train()
 
-    criterion = nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(CLIP_LSTM.parameters(
-    ), lr=_LEARNING_RATE, weight_decay=_WEIGHT_DECAY)
+    # Calculate class weights to handle imbalanced data
+    class_counts = torch.zeros(_NUM_OF_CLASSES)
+    for b_batch, _ in train_dataloader:
+        class_counts += torch.bincount(b_batch, minlength=_NUM_OF_CLASSES)
+    class_weights = 1.0 / class_counts
+    class_weights = class_weights / class_weights.sum()
+    class_weights = class_weights.to(_DEVICE)
 
-    # Add these variables before your training loop
-    best_loss = float('inf')
-    patience = 3
+    criterion = nn.CrossEntropyLoss(weight=class_weights)
+    optimizer = torch.optim.AdamW(
+        CLIP_LSTM.parameters(),
+        lr=_LEARNING_RATE,
+        weight_decay=_WEIGHT_DECAY,
+        betas=(0.9, 0.999)
+    )
+
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer,
+        mode='min',
+        factor=0.5,
+        patience=2,
+        min_lr=1e-6,
+        verbose=True
+    )
+
+    scaler = torch.amp.GradScaler('cuda')
+    best_val_loss = float('inf')
+    patience = 5
     patience_counter = 0
 
-    class_correct = torch.zeros(_NUM_OF_CLASSES).to(
-        _DEVICE)  # Number of correct predictions per class
-    class_total = torch.zeros(_NUM_OF_CLASSES).to(
-        _DEVICE)  # Total number of samples per class
+    for epoch in range(_EPOCHS):
+        CLIP_LSTM.train()
+        running_loss = 0.0
+        correct_predictions = 0
+        total_samples = 0
+        
+        # Add tracking for per-class metrics
+        all_predictions = []
+        all_labels = []
 
-    for epoch in range(_EPOCHS):  # Cycle each Epoch
+        progress_bar = tqdm(train_dataloader, desc=f"Training Epoch {epoch+1}")
 
-        # Initialize progress bar
-        progress_bar = tqdm(
-            dataloader, desc=f"Training Epoch {epoch+1}", leave=True)
+        for b_batch, s_batch in progress_bar:
+            b_batch = b_batch.to(_DEVICE)
+            s_batch = s_batch.to(_DEVICE, dtype=torch.float32)
 
-        running_loss = 0.0  # Contains loss value of model during training
-        correct_predictions = 0  # Number of correct predictions
-        total_samples = 0  # Total number of samples
-        class_distrib = torch.zeros(_NUM_OF_CLASSES)  # Distribution of batches
-
-        # b_batch: Batch of Behavior Labels
-        # s_batch: Batch of Sequences of frames
-        for batch_idx, (b_batch, s_batch) in enumerate(progress_bar):
-
-            class_distrib += torch.bincount(b_batch,
-                                            minlength=_NUM_OF_CLASSES)
-
-            b_batch = b_batch.to(_DEVICE)  # Transfer true labels to device
-            s_batch = s_batch.clone().detach().to(
-                device=_DEVICE, dtype=torch.float32)  # Convert batch of sequence to float32
-
-            # Clear gradients
             optimizer.zero_grad()
-            # Forward pass (make prediction)
-            output = CLIP_LSTM(s_batch)
-            # Compute difference of true and predicted values
-            loss = criterion(output, b_batch)
-            # Backward pass; let model learn
-            loss.backward()
-            # Readjust weights of model to apply learning
-            optimizer.step()
+
+            with torch.amp.autocast('cuda'):
+                output = CLIP_LSTM(s_batch)
+                loss = criterion(output, b_batch)
+
+            scaler.scale(loss).backward()
+            torch.nn.utils.clip_grad_norm_(
+                CLIP_LSTM.parameters(), max_norm=1.0)
+            scaler.step(optimizer)
+            scaler.update()
 
             running_loss += loss.item()
-
-            # Computing accuracy
-            predicted = torch.argmax(output, dim=1)  # Get predicted behavior
-            # Add if correct
+            predicted = torch.argmax(output, dim=1)
             correct_predictions += (predicted == b_batch).sum().item()
             total_samples += b_batch.size(0)
 
-            progress_bar.set_postfix(loss=loss.item())
+            # Store predictions and labels for class metrics
+            all_predictions.extend(predicted.cpu())
+            all_labels.extend(b_batch.cpu())
 
-            for i in range(_NUM_OF_CLASSES):
-                mask = (b_batch == i)
-                class_correct[i] += (predicted[mask] == b_batch[mask]).sum()
-                class_total[i] += mask.sum()
+            progress_bar.set_postfix(
+                loss=loss.item(),
+                acc=f"{100. * correct_predictions/total_samples:.2f}%"
+            )
 
-        # Add inside your epoch loop after calculating loss
-        if running_loss/len(dataloader) < best_loss:
-            best_loss = running_loss/len(dataloader)
+        # Calculate per-class accuracies for training
+        train_class_accuracies = calculate_class_metrics(
+            torch.tensor(all_labels), 
+            torch.tensor(all_predictions), 
+            _NUM_OF_CLASSES
+        )
+
+        # Validation phase with per-class metrics
+        val_loss, val_accuracy, val_class_accuracies = validate_model(
+            CLIP_LSTM, val_dataloader, criterion)
+
+        # Learning rate scheduling
+        scheduler.step(val_loss)
+
+        # Early stopping check
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
             patience_counter = 0
-            save_model_weights("best_disdrive_model.pth")
+            save_model_weights("best_model.pth")
         else:
             patience_counter += 1
 
         if patience_counter >= patience:
-            print(f"Early stopping at epoch {epoch+1}")
+            print(f"Early stopping triggered at epoch {epoch+1}")
             break
 
-        epoch_accuracy = (correct_predictions / total_samples) * 100
+        # Print epoch results with per-class metrics
+        print(f"\nEpoch {epoch+1}/{_EPOCHS}:")
+        print(f"Training Loss: {running_loss/len(train_dataloader):.4f}")
+        print(f"Training Accuracy: {100. * correct_predictions/total_samples:.2f}%")
+        print("\nPer-class Training Accuracies:")
+        for i, acc in enumerate(train_class_accuracies):
+            print(f"Class {i}: {acc:.2f}%")
+            
+        print(f"\nValidation Loss: {val_loss:.4f}")
+        print(f"Validation Accuracy: {val_accuracy:.2f}%")
+        print("\nPer-class Validation Accuracies:")
+        for i, acc in enumerate(val_class_accuracies):
+            print(f"Class {i}: {acc:.2f}%")
 
-        print(
-            f"Epoch [{epoch+1}/{_EPOCHS}], Loss: {running_loss/len(dataloader)}, Accuracy: {epoch_accuracy:.2f}%")
 
-        avg_class_dist = class_distrib / len(dataloader)  # Average per batch
-        print("Class distribution per batch:")
-        for class_idx, count in enumerate(avg_class_dist):
-            print(f"  Class {class_idx}: {count:.1f} samples")
+def validate_model(model, val_dataloader, criterion):
+    """Validates model performance on validation set"""
+    model.eval()
+    val_loss = 0
+    correct = 0
+    total = 0
+    
+    all_predictions = []
+    all_labels = []
 
-        print("\nPer-Class Accuracy:")
-        for i in range(_NUM_OF_CLASSES):
-            if class_total[i] > 0:
-                print(
-                    f"Class {i}: {100 * class_correct[i] / class_total[i]:.1f}%")
+    with torch.no_grad():
+        for b_batch, s_batch in val_dataloader:
+            b_batch = b_batch.to(_DEVICE)
+            s_batch = s_batch.to(_DEVICE, dtype=torch.float32)
+
+            outputs = model(s_batch)
+            loss = criterion(outputs, b_batch)
+
+            val_loss += loss.item()
+            _, predicted = outputs.max(1)
+            total += b_batch.size(0)
+            correct += predicted.eq(b_batch).sum().item()
+            
+            # Store predictions and labels for class metrics
+            all_predictions.extend(predicted.cpu())
+            all_labels.extend(b_batch.cpu())
+
+    # Calculate per-class accuracies
+    class_accuracies = calculate_class_metrics(
+        torch.tensor(all_labels), 
+        torch.tensor(all_predictions), 
+        _NUM_OF_CLASSES
+    )
+
+    return val_loss / len(val_dataloader), 100. * correct / total, class_accuracies
 
 
 def save_model_weights(file_name):
@@ -160,23 +239,41 @@ def save_model_weights(file_name):
 
 
 if __name__ == "__main__":
-    CLIP_LSTM: HybridModel = HybridModel()
-    CLIP_LSTM.to(_DEVICE)  # Move Hybrid Model to device
+    CLIP_LSTM = HybridModel()
+    CLIP_LSTM.to(_DEVICE)
 
-    full_dataset = DisDriveDataset(_DATASET_PATH,
-                                   CLIP_LSTM, _TO_PREPROCESS_DATA)
+    full_dataset = DisDriveDataset(
+        _DATASET_PATH, CLIP_LSTM, _TO_PREPROCESS_DATA)
 
-    train_dataset, test_dataset = create_train_test_split(
-        full_dataset, save_indices=True)
+    # Split into train, validation and test sets
+    total_size = len(full_dataset)
+    train_size = int(0.7 * total_size)
+    val_size = int(0.15 * total_size)
+    test_size = total_size - train_size - val_size
+
+    train_dataset, temp_dataset = torch.utils.data.random_split(
+        full_dataset, [train_size, val_size + test_size])
+    val_dataset, test_dataset = torch.utils.data.random_split(
+        temp_dataset, [val_size, test_size])
 
     print(f"Total dataset size: {len(full_dataset)}")
     print(f"Training set size: {len(train_dataset)}")
+    print(f"Validation set size: {len(val_dataset)}")
     print(f"Test set size: {len(test_dataset)}")
 
-    train_dataloader = DataLoader(train_dataset, batch_size=32,
-                                  pin_memory=True, shuffle=True)
+    train_dataloader = DataLoader(
+        train_dataset,
+        batch_size=32,  # Reduced batch size for better stability
+        pin_memory=True,
+        shuffle=True
+    )
 
-    # __dataloader_debug(dataloader)
+    val_dataloader = DataLoader(
+        val_dataset,
+        batch_size=32,
+        pin_memory=True,
+        shuffle=False
+    )
 
-    train_model(train_dataloader)
-    save_model_weights("refined_disdrive_model.pth")
+    train_model(train_dataloader, val_dataloader)
+    save_model_weights("final_model.pth")

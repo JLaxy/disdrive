@@ -110,13 +110,21 @@ class HybridModel(nn.Module):
         print(f"Successfully Loaded! Using device: {_DEVICE}")
 
     def forward(self, tensor_sequence):
-        """Processes input to the hybrid model to detect distracted driving; Size must be (BATCH, SEQUENCE_LENGTH, FEATURE_DIM)"""
+        """Processes input to the hybrid model to detect distracted driving"""
 
-        adapted_sequence = self.adapter(
-            tensor_sequence)  # Pass through adapter
+        # Reshape the input for batch processing
+        batch_size, seq_len, feat_dim = tensor_sequence.shape
+        # Combine batch and sequence dimensions
+        reshaped_input = tensor_sequence.view(-1, feat_dim)
 
-        lstm_output, (h_n, c_n) = self.lstm(
-            adapted_sequence)  # LSTM Forward Pass
+        # Pass through adapter
+        adapted = self.adapter(reshaped_input)
+
+        # Reshape back to sequence form
+        adapted_sequence = adapted.view(batch_size, seq_len, -1)
+
+        # LSTM Forward Pass
+        lstm_output, (h_n, c_n) = self.lstm(adapted_sequence)
 
         last_state = lstm_output[:, -1, :]
         output = self.fc(last_state)
