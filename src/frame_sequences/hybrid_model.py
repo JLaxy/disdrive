@@ -8,6 +8,9 @@ from torch.utils.data import Dataset
 from PIL import Image
 import PIL
 from torchvision import transforms
+from PIL import Image, ImageOps
+from torchvision.transforms import Compose, ToTensor, Normalize
+import matplotlib.pyplot as plt
 
 """Hybrid Model Settings"""
 _MODEL = "ViT-B/16"  # 224x224
@@ -18,8 +21,8 @@ _NUM_OF_CLASSES = 6
 
 """LSTM Parameters"""
 _LSTM_INPUT_SIZE = 256
-_LSTM_HIDDEN_SIZE = 128
-_LSTM_NUM_LAYERS = 1
+_LSTM_HIDDEN_SIZE = 256
+_LSTM_NUM_LAYERS = 2
 
 _BEHAVIOR_LABEL = {
     "a": 0,  # Safe Driving
@@ -81,13 +84,15 @@ class HybridModel(nn.Module):
         self.clip_model, self.preprocessor = clip.load(
             _MODEL, device=_DEVICE, jit=False)
 
+        self.preprocessor = self.get_letterbox_preprocessor()
+
         print("Loading LSTM model...")
 
         # Adapter for CLIP model
         self.adapter = nn.Sequential(
             nn.Linear(512, 256),
             nn.ReLU(),
-            nn.Dropout(0.5)
+            nn.Dropout(0.3)
         )
 
         # Initalizing LSTM Neural Network
@@ -133,12 +138,12 @@ class HybridModel(nn.Module):
         image = Image.open(frame_path)
 
         # Apply augmentation before CLIP preprocessing
-        if self.training:
+        if False:
             # If this is a new sequence, generate new augmentation parameters
             if sequence_id != self.current_sequence_id:
                 self.current_sequence_id = sequence_id
                 self._reset_sequence_params()
-            
+
             # Apply consistent augmentation
             image = self._apply_sequence_augmentation(image)
 
@@ -156,6 +161,50 @@ class HybridModel(nn.Module):
         features = features.squeeze(0).cpu().numpy()
         numpy.save(os.path.join(save_directory, frame_name.replace(".jpg", "")),
                    features)  # Save feature to disk
+
+    # Letterbox helper
+    def letterbox_image(self, image: Image.Image, size=(224, 224), fill_color=(0, 0, 0)):
+        image = image.convert("RGB")  # Ensure RGB
+        # Resize with aspect ratio preserved
+        image.thumbnail(size, Image.BICUBIC)
+
+        # Compute padding
+        delta_w = size[0] - image.size[0]
+        delta_h = size[1] - image.size[1]
+        padding = (delta_w // 2, delta_h // 2, delta_w -
+                   delta_w // 2, delta_h - delta_h // 2)
+
+        # Add padding
+        return ImageOps.expand(image, padding, fill=fill_color)
+
+    # Compose the full preprocessor (like CLIP but with letterbox)
+    def get_letterbox_preprocessor(self):
+        return Compose([
+            lambda img: self.letterbox_image(img, (224, 224)),
+            ToTensor(),
+            Normalize((0.48145466, 0.4578275, 0.40821073),
+                      (0.26862954, 0.26130258, 0.27577711))
+        ])
+
+    def visualize_letterbox(self, image_path):
+        # Load original image
+        original = Image.open(image_path).convert("RGB")
+
+        # Apply letterbox padding
+        padded = self.letterbox_image(original, size=(224, 224))
+
+        # Show side by side
+        fig, axs = plt.subplots(1, 2, figsize=(8, 4))
+        axs[0].imshow(original)
+        axs[0].set_title("Original")
+        axs[0].axis('off')
+
+        axs[1].imshow(padded)
+        axs[1].set_title("Letterbox Padded (224x224)")
+        axs[1].axis('off')
+
+        plt.tight_layout()
+        plt.show()
 
     def _reset_sequence_params(self):
         """Reset augmentation parameters for new sequence with more robust values"""
@@ -177,12 +226,16 @@ class HybridModel(nn.Module):
         """Apply consistent augmentation to frame"""
         if self.sequence_params['flip']:
             image = transforms.functional.hflip(image)
-        
-        image = transforms.functional.adjust_brightness(image, 1 + self.sequence_params['brightness'])
-        image = transforms.functional.adjust_contrast(image, 1 + self.sequence_params['contrast'])
-        image = transforms.functional.adjust_saturation(image, 1 + self.sequence_params['saturation'])
-        image = transforms.functional.adjust_hue(image, self.sequence_params['hue'])
-        
+
+        image = transforms.functional.adjust_brightness(
+            image, 1 + self.sequence_params['brightness'])
+        image = transforms.functional.adjust_contrast(
+            image, 1 + self.sequence_params['contrast'])
+        image = transforms.functional.adjust_saturation(
+            image, 1 + self.sequence_params['saturation'])
+        image = transforms.functional.adjust_hue(
+            image, self.sequence_params['hue'])
+
         image = transforms.functional.affine(
             image,
             angle=self.sequence_params['angle'],
@@ -190,7 +243,7 @@ class HybridModel(nn.Module):
             scale=self.sequence_params['scale'],
             shear=0
         )
-        
+
         return image
 
 
@@ -256,7 +309,8 @@ class DisDriveDataset(Dataset):
             if os.path.isdir(behavior_path):
 
                 sequence_folders = os.listdir(behavior_path)
-                sequence_folders = sorted(sequence_folders, key=lambda x: int(x))  # Sort numerically
+                sequence_folders = sorted(
+                    sequence_folders, key=lambda x: int(x))  # Sort numerically
 
                 # For every grouped sequence in current behavior folder
                 for sequence_folder in sequence_folders:
@@ -268,12 +322,13 @@ class DisDriveDataset(Dataset):
                         behavior_path, sequence_folder)
 
                     frame_list = []  # List of frames in a sequence of behavior
-                    
+
                     print(f"Processing {sequence_path}")
 
                     # Get all frames and sort them alphanumerically
                     frames = os.listdir(sequence_path)
-                    frames = sorted(frames, key=lambda x: x if x == "features_temp" else x.lower())
+                    frames = sorted(frames, key=lambda x: x if x ==
+                                    "features_temp" else x.lower())
 
                     # For every Frame in Sequence Folder
                     for frame in frames:
@@ -297,3 +352,10 @@ class DisDriveDataset(Dataset):
                         (behavior, save_path))  # Add to dataset_data
 
         print(f"Total number of processed sequences: {len(self.dataset_data)}")
+
+
+if __name__ == "__main__":
+    # Example usage
+    hybrid_model = HybridModel()
+
+    hybrid_model.visualize_letterbox("./CLIP.jpg")  # Path to your image

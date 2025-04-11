@@ -1,11 +1,11 @@
 """Trainer of the Distracted Driving Behavior Detector using CLIP and LSTM"""
 
 from hybrid_model import DisDriveDataset, HybridModel
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Subset
 from sklearn.metrics import classification_report, confusion_matrix, ConfusionMatrixDisplay, accuracy_score
 import matplotlib.pyplot as plt
 import torch
-from dataset_splitter import create_train_test_split
+from dataset_splitter import create_train_test_split, load_split_indices
 
 _DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 _DATASET_PATH = "./datasets/frame_sequences"
@@ -71,12 +71,14 @@ if __name__ == "__main__":
     CLIP_LSTM.to(_DEVICE)
 
     full_dataset = DisDriveDataset(_DATASET_PATH,
-                              CLIP_LSTM, _TO_PREPROCESS_DATA)
+                                   CLIP_LSTM, _TO_PREPROCESS_DATA)
 
-    _, test_dataset = create_train_test_split(full_dataset)
+    # Instead of creating a new split
+    _, test_indices = load_split_indices()
+    test_dataset = Subset(full_dataset, test_indices)
 
     # Initialize Dataloader
-    dataloader = DataLoader(test_dataset, batch_size=64,
+    dataloader = DataLoader(test_dataset, batch_size=32,
                             shuffle=False, pin_memory=True)
 
     test_model(dataloader)  # Test

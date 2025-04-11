@@ -12,7 +12,7 @@ _DATASET_PATH = "./datasets/frame_sequences"
 _DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 _EPOCHS = 20  # Number of Epochs
 _LEARNING_RATE = 0.0001  # Learning rate for optimizer in training
-_WEIGHT_DECAY = 0.0001  # Weight decay for optimizer in training
+_WEIGHT_DECAY = 0.00001  # Weight decay for optimizer in training
 _TRAINED_MODEL_SAVE_PATH = "./saved_models"
 _TO_PREPROCESS_DATA = False
 _NUM_OF_CLASSES = 6  # Number of classes in the dataset
@@ -164,17 +164,17 @@ if __name__ == "__main__":
     CLIP_LSTM.to(_DEVICE)  # Move Hybrid Model to device
 
     full_dataset = DisDriveDataset(_DATASET_PATH,
-                              CLIP_LSTM, _TO_PREPROCESS_DATA)
+                                   CLIP_LSTM, _TO_PREPROCESS_DATA)
 
-    train_dataset, test_dataset = create_train_test_split(full_dataset)
+    train_dataset, test_dataset = create_train_test_split(
+        full_dataset, save_indices=True)
 
     print(f"Total dataset size: {len(full_dataset)}")
     print(f"Training set size: {len(train_dataset)}")
     print(f"Test set size: {len(test_dataset)}")
 
-
-    train_dataloader = DataLoader(train_dataset, batch_size=64,
-                            pin_memory=True)
+    train_dataloader = DataLoader(train_dataset, batch_size=32,
+                                  pin_memory=True, shuffle=True)
 
     # __dataloader_debug(dataloader)
 

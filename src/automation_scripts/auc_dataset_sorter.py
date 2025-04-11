@@ -33,10 +33,11 @@ def organize_images_into_folders(source_folder, output_folder):
             dest_path = os.path.join(new_folder_path, image)
             shutil.copy(src_path, dest_path)
 
-    print(f"Organized {len(images)} images into folders of {images_per_folder} at {output_folder}.")
+    print(
+        f"Organized {len(images)} images into folders of {images_per_folder} at {output_folder}.")
 
 
 # Example usage
-source_folder = "D:\\zek\\4th yr comsci\\CS 401 (thesis 2)\\git\\datasetextraction\\Combined View\\Look Behind"
+source_folder = "E:\\Thesis\\AUC_SAMDD_COMBINED\\New Combined View\\Look Behind"
 output_folder = "./datasets/frame_sequences/f"
 organize_images_into_folders(source_folder, output_folder)

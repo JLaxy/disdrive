@@ -30,11 +30,11 @@ _BEHAVIOR_LABEL = {
 _FRAME_SKIP = 1  # Process every frame for smoother detection
 _FRAME_WIDTH = 224  # Standard size for model input
 _FRAME_HEIGHT = 224  # Standard size for model input
-_BUFFER_SIZE = 20  # Frames to analyze
-_SLIDING_WINDOW_STEP = 3  # Slide window by this many frames
+_BUFFER_SIZE = 10  # Frames to analyze
+_SLIDING_WINDOW_STEP = 1  # Slide window by this many frames
 _MAX_WORKERS = max(4, multiprocessing.cpu_count() - 2)  # Use more CPU cores
-_FEATURE_QUEUE_SIZE = 20  # Larger queue size
-_FRAME_QUEUE_SIZE = 20  # Larger queue size
+_FEATURE_QUEUE_SIZE = 20  # Larger queue
+_FRAME_QUEUE_SIZE = 20  # Larger queue sizesize
 
 # Alert settings
 _ALERT_INTERVAL = 1  # Play sound every second
@@ -259,11 +259,8 @@ class DisdriveModel:
 
         self.cache_misses += 1
 
-        # Resize frame to expected model input size
-        resized_frame = cv2.resize(frame, (_FRAME_WIDTH, _FRAME_HEIGHT))
-
         # Convert to RGB for PIL
-        processed_frame = cv2.cvtColor(resized_frame, cv2.COLOR_BGR2RGB)
+        processed_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         processed_frame = Image.fromarray(processed_frame)
 
         # Use the CLIP preprocessor
