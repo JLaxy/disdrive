@@ -129,7 +129,8 @@ class DisdriveModel:
             with torch.no_grad():
                 self.model.clip_model.encode_image(dummy_batch)
                 dummy_sequence = torch.zeros(2, _BUFFER_SIZE, 512).to(_DEVICE)
-                self.model(dummy_sequence)
+                dummy_view = torch.zeros(2).long().to(_DEVICE)  # [batch]
+                self.model(dummy_sequence, dummy_view)
 
         # Use deque with set buffer size
         self.frame_buffer = deque(maxlen=_BUFFER_SIZE)
@@ -327,8 +328,13 @@ class DisdriveModel:
                 sequence_tensor = torch.stack(
                     buffer_list).unsqueeze(0).to(_DEVICE)
 
+                # Create view tensor with correct batch dimension
+                view_tensor = torch.tensor(
+                    [0], device=_DEVICE).long()  # [1] for batch size 1
+
                 # Run model inference
-                output = self.model(sequence_tensor)
+                output = self.model(
+                    sequence_tensor, view_tensor)
 
                 # Get probabilities using softmax
                 probabilities = torch.nn.functional.softmax(output, dim=1)[0]
@@ -341,7 +347,7 @@ class DisdriveModel:
                 return behavior, probabilities
         except Exception as e:
             print(f"Error processing frame buffer: {e}")
-            return "Error"
+            return "Error", None
 
     def play_continuous_alert(self, behavior):
         """Play alert sound continuosly when behavior is unsafe"""

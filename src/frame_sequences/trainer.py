@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 
 _DATASET_PATH = "./datasets/frame_sequences"
 _DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-_EPOCHS = 6  # Number of Epochs
+_EPOCHS = 8  # Number of Epochs
 _LEARNING_RATE = 0.0001  # Learning rate for optimizer in training
 _WEIGHT_DECAY = 0.00001  # Weight decay for optimizer in training
 _TRAINED_MODEL_SAVE_PATH = "./saved_models"
@@ -83,7 +83,7 @@ def train_model(train_dataloader, val_dataloader):
 
     # Calculate class weights to handle imbalanced data
     class_counts = torch.zeros(_NUM_OF_CLASSES)
-    for b_batch, _ in train_dataloader:
+    for b_batch, _, _ in train_dataloader:
         class_counts += torch.bincount(b_batch, minlength=_NUM_OF_CLASSES)
     class_weights = 1.0 / class_counts
     class_weights = class_weights / class_weights.sum()
@@ -117,6 +117,7 @@ def train_model(train_dataloader, val_dataloader):
 
     for epoch in range(_EPOCHS):
         CLIP_LSTM.train()
+
         running_loss = 0.0
         correct_predictions = 0
         total_samples = 0
@@ -127,14 +128,15 @@ def train_model(train_dataloader, val_dataloader):
 
         progress_bar = tqdm(train_dataloader, desc=f"Training Epoch {epoch+1}")
 
-        for b_batch, s_batch in progress_bar:
+        for b_batch, s_batch, v_batch in progress_bar:
             b_batch = b_batch.to(_DEVICE)
             s_batch = s_batch.to(_DEVICE, dtype=torch.float32)
+            v_batch = v_batch.to(_DEVICE, dtype=torch.float32)
 
             optimizer.zero_grad()
 
             with torch.amp.autocast('cuda'):
-                output = CLIP_LSTM(s_batch)
+                output = CLIP_LSTM(s_batch, v_batch)
                 loss = criterion(output, b_batch)
 
             scaler.scale(loss).backward()
@@ -228,11 +230,12 @@ def validate_model(model, val_dataloader, criterion):
     all_labels = []
 
     with torch.no_grad():
-        for b_batch, s_batch in val_dataloader:
+        for b_batch, s_batch, v_batch in val_dataloader:
             b_batch = b_batch.to(_DEVICE)
             s_batch = s_batch.to(_DEVICE, dtype=torch.float32)
+            v_batch = v_batch.to(_DEVICE, dtype=torch.float32)
 
-            outputs = model(s_batch)
+            outputs = model(s_batch, v_batch)
             loss = criterion(outputs, b_batch)
 
             val_loss += loss.item()

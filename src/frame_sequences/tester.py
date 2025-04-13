@@ -30,13 +30,14 @@ def test_model(dataloader):
     with torch.no_grad():
         # b_batch: Batch of Behavior Labels
         # s_batch: Batch of Sequences of frames
-        for b_batch, s_batch in dataloader:
+        for b_batch, s_batch, v_batch in dataloader:
             # Move labels and sequences to device
             b_batch = b_batch.to(_DEVICE)
             # Convert batch of sequence to float32
             s_batch = s_batch.clone().detach().to(device=_DEVICE, dtype=torch.float32)
+            v_batch = v_batch.to(_DEVICE)
 
-            output = CLIP_LSTM(s_batch)
+            output = CLIP_LSTM(s_batch, v_batch)
             prediction = torch.argmax(output, dim=1)
 
             true_labels.extend(b_batch.cpu().numpy())

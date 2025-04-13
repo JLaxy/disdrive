@@ -7,6 +7,7 @@ import os
 from torch.utils.data import Dataset
 from PIL import Image
 import PIL
+import re
 from torchvision import transforms
 from PIL import Image, ImageOps
 from torchvision.transforms import Compose, ToTensor, Normalize
@@ -21,7 +22,7 @@ _NUM_OF_CLASSES = 6
 
 """LSTM Parameters"""
 _LSTM_INPUT_SIZE = 256
-_LSTM_HIDDEN_SIZE = 256
+_LSTM_HIDDEN_SIZE = 128
 _LSTM_NUM_LAYERS = 2
 
 _BEHAVIOR_LABEL = {
@@ -32,6 +33,12 @@ _BEHAVIOR_LABEL = {
     "e": 4,  # Head Down
     "f": 5,  # Look Behind
 }
+
+
+def natural_sort_key(s):
+    """Convert string with numbers into tuple of strings and integers"""
+    return [int(text) if text.isdigit() else text.lower()
+            for text in re.split(r'(\d+)', s)]
 
 
 class HybridModel(nn.Module):
@@ -88,9 +95,28 @@ class HybridModel(nn.Module):
 
         print("Loading LSTM model...")
 
+        # Determines if view is front or side
+        self.view_embedding = nn.Embedding(
+            2, 64, device=_DEVICE)  # 0=front, 1=side
+
+        # View attention
+        self.view_attention = nn.Sequential(
+            nn.Linear(64, 512),
+            nn.Tanh(),
+            nn.Linear(512, 512),
+            nn.Sigmoid()
+        )
+
+        # Temporal attention
+        self.temporal_attention = nn.Sequential(
+            nn.Linear(_LSTM_HIDDEN_SIZE, 128),
+            nn.Tanh(),
+            nn.Linear(128, 1)
+        )
+
         # Adapter for CLIP model
         self.adapter = nn.Sequential(
-            nn.Linear(512, 256),
+            nn.Linear(512 + 64, 256),  # 512 from CLIP + 64 from view embedding
             nn.BatchNorm1d(256),
             nn.ReLU(),
             nn.Dropout(0.3)
@@ -112,23 +138,33 @@ class HybridModel(nn.Module):
 
         print(f"Successfully Loaded! Using device: {_DEVICE}")
 
-    def forward(self, tensor_sequence):
+    def forward(self, tensor_sequence, view_type):
         batch_size, seq_len, feat_dim = tensor_sequence.shape
 
-        flattened = tensor_sequence.view(-1, feat_dim)
+        # View embedding and attention
+        view_emb = self.view_embedding(view_type.long())
+        view_emb = view_emb.unsqueeze(1).expand(-1, seq_len, -1)
+        view_attention = self.view_attention(view_emb)
+        attended_features = tensor_sequence * view_attention
+
+        # Combine with view embedding
+        combined = torch.cat([attended_features, view_emb], dim=2)
+
+        # Process through adapter and LSTM
+        flattened = combined.view(-1, feat_dim + 64)
         adapted = self.adapter(flattened)
         adapted_sequence = adapted.view(batch_size, seq_len, -1)
-
-        # Dropout before LSTM (temporal regularization)
-        adapted_sequence = self.temporal_dropout(adapted_sequence)
-
         lstm_output, _ = self.lstm(adapted_sequence)
-        mean_pooled = lstm_output.mean(dim=1)  # average over time
-        output = self.fc(mean_pooled)
 
+        # Temporal attention pooling
+        attention_weights = self.temporal_attention(lstm_output)
+        attention_weights = torch.softmax(attention_weights, dim=1)
+        attended_output = torch.sum(lstm_output * attention_weights, dim=1)
+
+        output = self.fc(attended_output)
         return output
 
-    def preprocess(self, save_directory: str, frame_path: str, frame_name: str, sequence_id: str = None):
+    def preprocess(self, save_directory: str, frame_path: str, frame_name: str, view_type: int, sequence_id: str = None):
         """
         Preprocess image then save to disk
         Args:
@@ -164,8 +200,9 @@ class HybridModel(nn.Module):
 
         # Edit dimension then convert to numpy
         features = features.squeeze(0).cpu().numpy()
-        numpy.save(os.path.join(save_directory, frame_name.replace(".jpg", "")),
-                   features)  # Save feature to disk
+        save_name = os.path.join(
+            save_directory, f"{frame_name.replace('.jpg', '')}_view{view_type}")
+        numpy.save(save_name, features)  # Save feature to disk
 
     # Letterbox helper
     def letterbox_image(self, image: Image.Image, size=(224, 224), fill_color=(0, 0, 0)):
@@ -272,7 +309,7 @@ class DisDriveDataset(Dataset):
         self.__process_dataset()
 
     def __getitem__(self, index):
-        behavior, feature_path = self.dataset_data[index]
+        behavior, feature_path, view_type = self.dataset_data[index]
         features = []
 
         for feature_file in sorted(os.listdir(feature_path)):
@@ -282,7 +319,7 @@ class DisDriveDataset(Dataset):
             feature = numpy.load(path)
             features.append(feature)
 
-        return torch.tensor(behavior), torch.tensor(features, dtype=torch.float32)
+        return torch.tensor(behavior), torch.tensor(features, dtype=torch.float32), torch.tensor(view_type)
 
     def __len__(self):
         """Returns length of dataset"""
@@ -308,7 +345,7 @@ class DisDriveDataset(Dataset):
 
                 sequence_folders = os.listdir(behavior_path)
                 sequence_folders = sorted(
-                    sequence_folders, key=lambda x: int(x))  # Sort numerically
+                    sequence_folders, key=natural_sort_key)  # Sort numerically
 
                 # For every grouped sequence in current behavior folder
                 for sequence_folder in sequence_folders:
@@ -319,9 +356,10 @@ class DisDriveDataset(Dataset):
                     sequence_path = os.path.join(
                         behavior_path, sequence_folder)
 
-                    frame_list = []  # List of frames in a sequence of behavior
+                    view_type = 0 if "front" in sequence_path.lower() else 1
 
-                    print(f"Processing {sequence_path}")
+                    print(
+                        f"Processing {sequence_path} (View type: {'front' if view_type == 0 else 'side'})")
 
                     # Get all frames and sort them alphanumerically
                     frames = os.listdir(sequence_path)
@@ -335,8 +373,6 @@ class DisDriveDataset(Dataset):
                             continue
 
                         frame_path = os.path.join(sequence_path, frame)
-                        # Add Frame to List
-                        frame_list.append(frame_path)
 
                         save_path = sequence_path + "/features_temp"
 
@@ -344,12 +380,17 @@ class DisDriveDataset(Dataset):
                         if self.to_get_features:
                             # Pass sequence_folder as sequence_id
                             self.hybrid_model.preprocess(
-                                save_path, frame_path, frame, sequence_id=sequence_folder)
+                                save_path, frame_path, frame, view_type, sequence_id=sequence_folder)
 
                     self.dataset_data.append(
-                        (behavior, save_path))  # Add to dataset_data
+                        (behavior, save_path, view_type))  # Add to dataset_data
 
         print(f"Total number of processed sequences: {len(self.dataset_data)}")
+        # Log distribution of views
+        front_count = sum(1 for _, _, v in self.dataset_data if v == 0)
+        side_count = sum(1 for _, _, v in self.dataset_data if v == 1)
+        print(
+            f"Front view sequences: {front_count}, Side view sequences: {side_count}")
 
 
 if __name__ == "__main__":

@@ -11,28 +11,36 @@ def natural_sort_key(s):
 
 def organize_images_into_folders(source_folder, output_folder):
     """Iterates through all of the images and puts 20 images it iterates in a folder"""
-    # Get a list of all image files in the source folder
-    images = [file for file in os.listdir(source_folder) if file.lower().endswith(
-        (".png", ".jpg", ".jpeg", ".gif", ".bmp"))]
-    images.sort(key=natural_sort_key)  # Sort the images using natural sort
 
-    # Define how many images per folder
-    images_per_folder = 20
+    views = ["side", "front"]
 
-    # Iterate through the images in chunks of `images_per_folder`
-    for i in range(0, len(images), images_per_folder):
-        folder_index = i // images_per_folder + 1
-        new_folder_path = os.path.join(output_folder, str(folder_index))
+    for view in views:
+        view_folder = os.path.join(source_folder, view)
 
-        # Create the new folder if it doesn't exist
-        os.makedirs(new_folder_path, exist_ok=True)
+        print(f"Processing in {view_folder}...")
 
-        # Move the current batch of images into the new folder
-        for image in images[i:i + images_per_folder]:
-            src_path = os.path.join(source_folder, image)
-            dest_path = os.path.join(new_folder_path, image)
-            shutil.copy(src_path, dest_path)
+        # Get a list of all image files in the source folder
+        images = [file for file in os.listdir(view_folder) if file.lower().endswith(
+            (".png", ".jpg", ".jpeg", ".gif", ".bmp"))]
+        images.sort(key=natural_sort_key)  # Sort the images using natural sort
 
+        # Define how many images per folder
+        images_per_folder = 20
+
+        # Iterate through the images in chunks of `images_per_folder`
+        for i in range(0, len(images), images_per_folder):
+            folder_index = i // images_per_folder + 1
+            new_folder_path = os.path.join(
+                output_folder, f"{view}_{folder_index}")
+
+            # Create the new folder if it doesn't exist
+            os.makedirs(f"{new_folder_path}", exist_ok=True)
+
+            # Move the current batch of images into the new folder
+            for image in images[i:i + images_per_folder]:
+                src_path = os.path.join(view_folder, image)
+                dest_path = os.path.join(new_folder_path, image)
+                shutil.copy(src_path, dest_path)
     print(
         f"Organized {len(images)} images into folders of {images_per_folder} at {output_folder}.")
 
