@@ -7,10 +7,11 @@ import torch
 import os
 from tqdm import tqdm
 from dataset_splitter import create_train_test_split
+import matplotlib.pyplot as plt
 
 _DATASET_PATH = "./datasets/frame_sequences"
 _DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-_EPOCHS = 20  # Number of Epochs
+_EPOCHS = 6  # Number of Epochs
 _LEARNING_RATE = 0.0001  # Learning rate for optimizer in training
 _WEIGHT_DECAY = 0.00001  # Weight decay for optimizer in training
 _TRAINED_MODEL_SAVE_PATH = "./saved_models"
@@ -60,19 +61,19 @@ def calculate_class_metrics(true_labels, predicted_labels, num_classes):
     """Calculate per-class accuracy"""
     class_correct = torch.zeros(num_classes)
     class_total = torch.zeros(num_classes)
-    
+
     for t, p in zip(true_labels, predicted_labels):
         if t == p:
             class_correct[t] += 1
         class_total[t] += 1
-    
+
     # Avoid division by zero
     class_accuracies = torch.where(
-        class_total != 0, 
+        class_total != 0,
         100.0 * class_correct / class_total,
         torch.tensor(0.0)
     )
-    
+
     return class_accuracies
 
 
@@ -110,12 +111,16 @@ def train_model(train_dataloader, val_dataloader):
     patience = 5
     patience_counter = 0
 
+    # Add lists to store losses
+    train_losses = []
+    val_losses = []
+
     for epoch in range(_EPOCHS):
         CLIP_LSTM.train()
         running_loss = 0.0
         correct_predictions = 0
         total_samples = 0
-        
+
         # Add tracking for per-class metrics
         all_predictions = []
         all_labels = []
@@ -152,16 +157,21 @@ def train_model(train_dataloader, val_dataloader):
                 acc=f"{100. * correct_predictions/total_samples:.2f}%"
             )
 
+        # Calculate average training loss for this epoch
+        avg_train_loss = running_loss/len(train_dataloader)
+        train_losses.append(avg_train_loss)
+
         # Calculate per-class accuracies for training
         train_class_accuracies = calculate_class_metrics(
-            torch.tensor(all_labels), 
-            torch.tensor(all_predictions), 
+            torch.tensor(all_labels),
+            torch.tensor(all_predictions),
             _NUM_OF_CLASSES
         )
 
         # Validation phase with per-class metrics
         val_loss, val_accuracy, val_class_accuracies = validate_model(
             CLIP_LSTM, val_dataloader, criterion)
+        val_losses.append(val_loss)
 
         # Learning rate scheduling
         scheduler.step(val_loss)
@@ -178,19 +188,33 @@ def train_model(train_dataloader, val_dataloader):
             print(f"Early stopping triggered at epoch {epoch+1}")
             break
 
-        # Print epoch results with per-class metrics
+        # Print epoch results with losses
         print(f"\nEpoch {epoch+1}/{_EPOCHS}:")
-        print(f"Training Loss: {running_loss/len(train_dataloader):.4f}")
-        print(f"Training Accuracy: {100. * correct_predictions/total_samples:.2f}%")
+        print(f"Training Loss: {avg_train_loss:.4f}")
+        print(f"Validation Loss: {val_loss:.4f}")
+        print(
+            f"Training Accuracy: {100. * correct_predictions/total_samples:.2f}%")
+        print(f"Validation Accuracy: {val_accuracy:.2f}%")
+
+        # Print per-class metrics
         print("\nPer-class Training Accuracies:")
         for i, acc in enumerate(train_class_accuracies):
             print(f"Class {i}: {acc:.2f}%")
-            
-        print(f"\nValidation Loss: {val_loss:.4f}")
-        print(f"Validation Accuracy: {val_accuracy:.2f}%")
+
         print("\nPer-class Validation Accuracies:")
         for i, acc in enumerate(val_class_accuracies):
             print(f"Class {i}: {acc:.2f}%")
+
+        # Optional: Plot losses every few epochs or at the end
+        if (epoch + 1) % 5 == 0 or epoch == _EPOCHS - 1:
+            plt.figure(figsize=(10, 5))
+            plt.plot(train_losses, label='Training Loss')
+            plt.plot(val_losses, label='Validation Loss')
+            plt.xlabel('Epoch')
+            plt.ylabel('Loss')
+            plt.title('Training and Validation Loss Over Time')
+            plt.legend()
+            plt.show()
 
 
 def validate_model(model, val_dataloader, criterion):
@@ -199,7 +223,7 @@ def validate_model(model, val_dataloader, criterion):
     val_loss = 0
     correct = 0
     total = 0
-    
+
     all_predictions = []
     all_labels = []
 
@@ -215,15 +239,15 @@ def validate_model(model, val_dataloader, criterion):
             _, predicted = outputs.max(1)
             total += b_batch.size(0)
             correct += predicted.eq(b_batch).sum().item()
-            
+
             # Store predictions and labels for class metrics
             all_predictions.extend(predicted.cpu())
             all_labels.extend(b_batch.cpu())
 
     # Calculate per-class accuracies
     class_accuracies = calculate_class_metrics(
-        torch.tensor(all_labels), 
-        torch.tensor(all_predictions), 
+        torch.tensor(all_labels),
+        torch.tensor(all_predictions),
         _NUM_OF_CLASSES
     )
 

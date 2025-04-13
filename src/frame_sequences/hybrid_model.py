@@ -91,9 +91,12 @@ class HybridModel(nn.Module):
         # Adapter for CLIP model
         self.adapter = nn.Sequential(
             nn.Linear(512, 256),
+            nn.BatchNorm1d(256),
             nn.ReLU(),
             nn.Dropout(0.3)
         )
+
+        self.temporal_dropout = nn.Dropout(0.2)
 
         # Initalizing LSTM Neural Network
         self.lstm: torch.nn.LSTM = torch.nn.LSTM(
@@ -110,24 +113,18 @@ class HybridModel(nn.Module):
         print(f"Successfully Loaded! Using device: {_DEVICE}")
 
     def forward(self, tensor_sequence):
-        """Processes input to the hybrid model to detect distracted driving"""
-
-        # Reshape the input for batch processing
         batch_size, seq_len, feat_dim = tensor_sequence.shape
-        # Combine batch and sequence dimensions
-        reshaped_input = tensor_sequence.view(-1, feat_dim)
 
-        # Pass through adapter
-        adapted = self.adapter(reshaped_input)
-
-        # Reshape back to sequence form
+        flattened = tensor_sequence.view(-1, feat_dim)
+        adapted = self.adapter(flattened)
         adapted_sequence = adapted.view(batch_size, seq_len, -1)
 
-        # LSTM Forward Pass
-        lstm_output, (h_n, c_n) = self.lstm(adapted_sequence)
+        # Dropout before LSTM (temporal regularization)
+        adapted_sequence = self.temporal_dropout(adapted_sequence)
 
-        last_state = lstm_output[:, -1, :]
-        output = self.fc(last_state)
+        lstm_output, _ = self.lstm(adapted_sequence)
+        mean_pooled = lstm_output.mean(dim=1)  # average over time
+        output = self.fc(mean_pooled)
 
         return output
 
@@ -275,24 +272,17 @@ class DisDriveDataset(Dataset):
         self.__process_dataset()
 
     def __getitem__(self, index):
-        """Returns Dataset Data at specific index"""
-        # Retrieve behavior and feature
-        (behavior, feature_path) = self.dataset_data[index]
+        behavior, feature_path = self.dataset_data[index]
+        features = []
 
-        features = []  # List containing features of frames
-
-        # For every feature in feature_path path
-        for feature_file in os.listdir(feature_path):
-            # Create path of feature
-            path = os.path.join(
-                feature_path, feature_file)
-
-            # Load feature from disk
+        for feature_file in sorted(os.listdir(feature_path)):
+            if not feature_file.endswith(".npy"):
+                continue
+            path = os.path.join(feature_path, feature_file)
             feature = numpy.load(path)
-            # Add to list
             features.append(feature)
 
-        return behavior, numpy.array(features)
+        return torch.tensor(behavior), torch.tensor(features, dtype=torch.float32)
 
     def __len__(self):
         """Returns length of dataset"""
