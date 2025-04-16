@@ -46,7 +46,7 @@ def natural_sort_key(s):
 class HybridModel(nn.Module):
     """The class of the CLIP-LSTM hybrid used for distracted driving detection."""
 
-    def __init__(self):
+    def __init__(self, use_precomputed: bool):
         """Initializes instance of CLIP-LSTM hybrid model"""
         # REQUIRED; Initializing parent class
         super().__init__()
@@ -75,6 +75,7 @@ class HybridModel(nn.Module):
         #     transforms.RandomGrayscale(p=0.05)  # reduced from 0.1
         # ])
 
+        self.use_precomputed = use_precomputed  # Use precomputed features or not
         self.current_sequence_id = None
         self.sequence_params = {
             'flip': False,
@@ -118,7 +119,7 @@ class HybridModel(nn.Module):
         self.adapter = nn.Sequential(
             nn.Linear(_CLIP_OUTPUT_DIM +
                       _VIEW_EMBEDDING_DIM, _LSTM_INPUT_SIZE),
-            nn.BatchNorm1d(_LSTM_INPUT_SIZE),
+            nn.LayerNorm(_LSTM_INPUT_SIZE),
             nn.ReLU(),
             nn.Dropout(0.3)
         )
@@ -146,6 +147,34 @@ class HybridModel(nn.Module):
         self.fc = nn.Linear(_LSTM_HIDDEN_SIZE, _NUM_OF_CLASSES, device=_DEVICE)
 
         print(f"Successfully Loaded! Using device: {_DEVICE}")
+
+    @torch.no_grad()
+    def extract_features(self, image: Image.Image):
+        """Process image through CLIP and return the 512-dim feature"""
+        preprocessed = self.preprocessor(image).unsqueeze(0).to(_DEVICE)
+        return self.clip_model.encode_image(preprocessed).squeeze(0)
+
+    def set_clip_grad_status(self, stage):
+        """
+        Set which CLIP layers should have gradients enabled
+        stage: 0 = all frozen, 1 = last few unfrozen, 2 = all unfrozen
+        """
+        # First freeze everything
+        for param in self.clip_model.parameters():
+            param.requires_grad = False
+
+        if stage >= 1:
+            # Unfreeze last few transformer blocks
+            layers_to_unfreeze = 2
+            for i, block in enumerate(reversed(self.clip_model.visual.transformer.resblocks)):
+                if i < layers_to_unfreeze:
+                    for param in block.parameters():
+                        param.requires_grad = True
+
+        if stage >= 2:
+            # Unfreeze all CLIP layers
+            for param in self.clip_model.parameters():
+                param.requires_grad = True
 
     def forward(self, tensor_sequence, view_type):
         # tensor_sequence shape: [batch_size, seq_len, 512]
@@ -325,15 +354,24 @@ class DisDriveDataset(Dataset):
     def __getitem__(self, index):
         behavior, feature_path, view_type = self.dataset_data[index]
         features = []
+        images = []
+        if self.hybrid_model.use_precomputed:
 
-        for feature_file in sorted(os.listdir(feature_path)):
-            if not feature_file.endswith(".npy"):
-                continue
-            path = os.path.join(feature_path, feature_file)
-            feature = numpy.load(path)
-            features.append(feature)
+            for feature_file in sorted(os.listdir(feature_path)):
+                if not feature_file.endswith(".npy"):
+                    continue
+                path = os.path.join(feature_path, feature_file)
+                feature = numpy.load(path)
+                features.append(feature)
 
-        return torch.tensor(behavior), torch.tensor(features, dtype=torch.float32), torch.tensor(view_type)
+            return torch.tensor(behavior), torch.tensor(features, dtype=torch.float32), torch.tensor(view_type)
+        else:
+            for image in sorted(feature_path):
+                if not image.endswith(".jpg"):
+                    continue
+                images.append(
+                    self.hybrid_model.extract_features(Image.open(image)))
+            return torch.tensor(behavior, device='cpu'), torch.stack(images).cpu(), torch.tensor(view_type, device='cpu')
 
     def __len__(self):
         """Returns length of dataset"""
@@ -380,6 +418,8 @@ class DisDriveDataset(Dataset):
                     frames = sorted(frames, key=lambda x: x if x ==
                                     "features_temp" else x.lower())
 
+                    sequence = []
+
                     # For every Frame in Sequence Folder
                     for frame in frames:
 
@@ -391,13 +431,21 @@ class DisDriveDataset(Dataset):
                         save_path = sequence_path + "/features_temp"
 
                         # If to get features; saves features to disk if True
-                        if self.to_get_features:
+                        if self.to_get_features and self.hybrid_model.use_precomputed:
                             # Pass sequence_folder as sequence_id
                             self.hybrid_model.preprocess(
                                 save_path, frame_path, frame, view_type, sequence_id=sequence_folder)
+                        else:
+                            sequence.append(frame_path)
 
-                    self.dataset_data.append(
-                        (behavior, save_path, view_type))  # Add to dataset_data
+                    if self.hybrid_model.use_precomputed:
+                        self.dataset_data.append(
+                            # Add to dataset_data
+                            (behavior, save_path, view_type))
+                    else:
+                        self.dataset_data.append(
+                            # Add to dataset_data
+                            (behavior, sequence, view_type))
 
         print(f"Total number of processed sequences: {len(self.dataset_data)}")
         # Log distribution of views

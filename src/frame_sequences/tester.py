@@ -65,7 +65,7 @@ def test_model(dataloader):
 
 if __name__ == "__main__":
     # Initialize model
-    CLIP_LSTM: HybridModel = HybridModel()
+    CLIP_LSTM: HybridModel = HybridModel(use_precomputed=True)
     # Load Weights
     CLIP_LSTM.load_state_dict(torch.load(_TRAINED_MODEL_SAVE_PATH))
     # Move Hybrid Model to device

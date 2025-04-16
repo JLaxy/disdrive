@@ -103,7 +103,7 @@ class DisdriveModel:
     def _initialize_model(self):
         """All functions to initialize model"""
         print(f"Using device: {_DEVICE} with {_MAX_WORKERS} workers")
-        self.model = HybridModel()
+        self.model = HybridModel(use_precomputed=True)
         self.model.load_state_dict(torch.load(
             _TRAINED_MODEL_SAVE_PATH, map_location=_DEVICE))
         self.model.to(_DEVICE)
@@ -330,7 +330,7 @@ class DisdriveModel:
 
                 # Create view tensor with correct batch dimension
                 view_tensor = torch.tensor(
-                    [0], device=_DEVICE).long()  # [1] for batch size 1
+                    [1], device=_DEVICE).long()  # [1] for batch size 1
 
                 # Run model inference
                 output = self.model(
