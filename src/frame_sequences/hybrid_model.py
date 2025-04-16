@@ -21,9 +21,11 @@ _DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 _NUM_OF_CLASSES = 6
 
 """LSTM Parameters"""
-_LSTM_INPUT_SIZE = 256
+_LSTM_INPUT_SIZE = 256  # Changed to match adapter output
 _LSTM_HIDDEN_SIZE = 128
 _LSTM_NUM_LAYERS = 2
+_VIEW_EMBEDDING_DIM = 64
+_CLIP_OUTPUT_DIM = 512
 
 _BEHAVIOR_LABEL = {
     "a": 0,  # Safe Driving
@@ -87,45 +89,42 @@ class HybridModel(nn.Module):
 
         print("Loading CLIP model...")
 
-        # Loading CLIP model
+        # CLIP model outputs 512-dimensional features
         self.clip_model, self.preprocessor = clip.load(
             _MODEL, device=_DEVICE, jit=False)
-
         self.preprocessor = self.get_letterbox_preprocessor()
+
+        for param in self.clip_model.parameters():
+            param.requires_grad = False
 
         print("Loading LSTM model...")
 
-        # Determines if view is front or side
+        # View embedding (2 views -> 64 dim)
         self.view_embedding = nn.Embedding(
-            2, 64, device=_DEVICE)  # 0=front, 1=side
+            num_embeddings=2,  # front/side view
+            embedding_dim=_VIEW_EMBEDDING_DIM,
+            device=_DEVICE
+        )
 
-        # View attention
+        # View attention (64 -> 512)
         self.view_attention = nn.Sequential(
-            nn.Linear(64, 512),
+            nn.Linear(_VIEW_EMBEDDING_DIM, _CLIP_OUTPUT_DIM),
             nn.Tanh(),
-            nn.Linear(512, 512),
+            nn.Linear(_CLIP_OUTPUT_DIM, _CLIP_OUTPUT_DIM),
             nn.Sigmoid()
         )
 
-        # Temporal attention
-        self.temporal_attention = nn.Sequential(
-            nn.Linear(_LSTM_HIDDEN_SIZE, 128),
-            nn.Tanh(),
-            nn.Linear(128, 1)
-        )
-
-        # Adapter for CLIP model
+        # Adapter (512 + 64 -> 256)
         self.adapter = nn.Sequential(
-            nn.Linear(512 + 64, 256),  # 512 from CLIP + 64 from view embedding
-            nn.BatchNorm1d(256),
+            nn.Linear(_CLIP_OUTPUT_DIM +
+                      _VIEW_EMBEDDING_DIM, _LSTM_INPUT_SIZE),
+            nn.BatchNorm1d(_LSTM_INPUT_SIZE),
             nn.ReLU(),
             nn.Dropout(0.3)
         )
 
-        self.temporal_dropout = nn.Dropout(0.2)
-
-        # Initalizing LSTM Neural Network
-        self.lstm: torch.nn.LSTM = torch.nn.LSTM(
+        # LSTM (256 -> 128)
+        self.lstm = nn.LSTM(
             input_size=_LSTM_INPUT_SIZE,
             hidden_size=_LSTM_HIDDEN_SIZE,
             num_layers=_LSTM_NUM_LAYERS,
@@ -134,33 +133,51 @@ class HybridModel(nn.Module):
             device=_DEVICE
         )
 
+        # Temporal attention (128 -> 1)
+        self.temporal_attention = nn.Sequential(
+            nn.Linear(_LSTM_HIDDEN_SIZE, _LSTM_HIDDEN_SIZE),
+            nn.Tanh(),
+            nn.Linear(_LSTM_HIDDEN_SIZE, 1)
+        )
+
+        self.temporal_dropout = nn.Dropout(0.2)
+
+        # Final classification (128 -> num_classes)
         self.fc = nn.Linear(_LSTM_HIDDEN_SIZE, _NUM_OF_CLASSES, device=_DEVICE)
 
         print(f"Successfully Loaded! Using device: {_DEVICE}")
 
     def forward(self, tensor_sequence, view_type):
+        # tensor_sequence shape: [batch_size, seq_len, 512]
         batch_size, seq_len, feat_dim = tensor_sequence.shape
 
-        # View embedding and attention
+        # View embedding: [batch_size, 64] -> [batch_size, seq_len, 64]
         view_emb = self.view_embedding(view_type.long())
         view_emb = view_emb.unsqueeze(1).expand(-1, seq_len, -1)
+
+        # View attention: [batch_size, seq_len, 512]
         view_attention = self.view_attention(view_emb)
         attended_features = tensor_sequence * view_attention
 
-        # Combine with view embedding
+        # Combine features: [batch_size, seq_len, 576]
         combined = torch.cat([attended_features, view_emb], dim=2)
 
-        # Process through adapter and LSTM
-        flattened = combined.view(-1, feat_dim + 64)
+        # Adapter: [batch_size * seq_len, 256]
+        flattened = combined.view(-1, _CLIP_OUTPUT_DIM + _VIEW_EMBEDDING_DIM)
         adapted = self.adapter(flattened)
-        adapted_sequence = adapted.view(batch_size, seq_len, -1)
+        adapted_sequence = adapted.view(batch_size, seq_len, _LSTM_INPUT_SIZE)
+
+        # LSTM: [batch_size, seq_len, 128]
         lstm_output, _ = self.lstm(adapted_sequence)
 
-        # Temporal attention pooling
+        # Temporal attention: [batch_size, seq_len, 1]
         attention_weights = self.temporal_attention(lstm_output)
         attention_weights = torch.softmax(attention_weights, dim=1)
+
+        # Weighted sum: [batch_size, 128]
         attended_output = torch.sum(lstm_output * attention_weights, dim=1)
 
+        # Final classification: [batch_size, num_classes]
         output = self.fc(attended_output)
         return output
 
@@ -190,9 +207,6 @@ class HybridModel(nn.Module):
 
         preprocessed = self.preprocessor(image).unsqueeze(
             0).to(_DEVICE)  # Open image, preprocess then save to device
-
-        # preprocessed = self.preprocessor(Image.open(frame_path)).unsqueeze(
-        #     0).to(_DEVICE)  # Open image, preprocess then save to device
 
         with torch.no_grad():
             features = self.clip_model.encode_image(

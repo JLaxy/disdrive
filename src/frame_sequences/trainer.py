@@ -18,6 +18,12 @@ _TRAINED_MODEL_SAVE_PATH = "./saved_models"
 _TO_PREPROCESS_DATA = False
 _NUM_OF_CLASSES = 6  # Number of classes in the dataset
 
+layer_thresholds = {
+    "adapter": (1e-3, 1.0),
+    "lstm": (1e-3, 1.0),
+    "classifier": (1e-2, 10.0),
+    "clip_model": (0.0, 1e-3),  # If frozen, otherwise raise upper bound
+}
 
 # def custom_collate_fn(batch):
 #     """Custom Collate Function to ensure that batches are in the correct format"""
@@ -77,6 +83,35 @@ def calculate_class_metrics(true_labels, predicted_labels, num_classes):
     return class_accuracies
 
 
+def log_gradient_norms(model, epoch, target_norm=1.0):
+    print(f"\n[Gradient Norms - Epoch {epoch+1}]")
+    for name, param in model.named_parameters():
+        if param.grad is not None:
+            grad_norm = param.grad.norm(2).item()
+            print(f"{name}: L2 Grad Norm = {grad_norm:.6f} (Target: {target_norm})")
+        else:
+            print(f"{name}: No gradient.")
+
+
+def monitor_gradients(model, epoch, layer_thresholds):
+    print(f"\n🔍 Gradient Monitoring for Epoch {epoch+1}")
+    for name, param in model.named_parameters():
+        if param.grad is not None:
+            grad_norm = param.grad.norm().item()
+            for key, (min_th, max_th) in layer_thresholds.items():
+                if key in name:
+                    status = "✅ OK"
+                    if grad_norm < min_th:
+                        status = "⚠️ Too Low"
+                    elif grad_norm > max_th:
+                        status = "🚨 Too High"
+                    print(
+                        f"{name:50} | Grad Norm: {grad_norm:.6f} | Range: [{min_th}, {max_th}] -> {status}")
+                    break
+        else:
+            print(f"{name:50} | ⚠️ No Gradient")
+
+
 def train_model(train_dataloader, val_dataloader):
     """Trains Hybrid Model using dataset with validation"""
     CLIP_LSTM.train()
@@ -89,7 +124,7 @@ def train_model(train_dataloader, val_dataloader):
     class_weights = class_weights / class_weights.sum()
     class_weights = class_weights.to(_DEVICE)
 
-    criterion = nn.CrossEntropyLoss(weight=class_weights)
+    criterion = nn.CrossEntropyLoss(weight=class_weights, label_smoothing=0.1)
     optimizer = torch.optim.AdamW(
         CLIP_LSTM.parameters(),
         lr=_LEARNING_RATE,
@@ -140,6 +175,10 @@ def train_model(train_dataloader, val_dataloader):
                 loss = criterion(output, b_batch)
 
             scaler.scale(loss).backward()
+
+            # Unscale and check gradients
+            scaler.unscale_(optimizer)
+            # Clip & step
             torch.nn.utils.clip_grad_norm_(
                 CLIP_LSTM.parameters(), max_norm=1.0)
             scaler.step(optimizer)
@@ -159,6 +198,8 @@ def train_model(train_dataloader, val_dataloader):
                 acc=f"{100. * correct_predictions/total_samples:.2f}%"
             )
 
+        monitor_gradients(CLIP_LSTM, epoch, layer_thresholds)
+
         # Calculate average training loss for this epoch
         avg_train_loss = running_loss/len(train_dataloader)
         train_losses.append(avg_train_loss)
@@ -177,6 +218,15 @@ def train_model(train_dataloader, val_dataloader):
 
         # Learning rate scheduling
         scheduler.step(val_loss)
+
+        # Log current learning rate
+        current_lr = optimizer.param_groups[0]['lr']
+        print(f"🔁 Current Learning Rate: {current_lr:.6f}")
+
+        # Optional: Warn if learning rate is too low
+        if current_lr <= 1e-6:
+            print("⚠️ Learning rate has reached the minimum threshold. Consider reviewing model capacity or data quality.")
+
 
         # Early stopping check
         if val_loss < best_val_loss:
