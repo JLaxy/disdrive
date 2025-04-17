@@ -6,54 +6,16 @@ import torch.nn as nn
 import torch
 import os
 from tqdm import tqdm
-from dataset_splitter import create_train_test_split
+import torch.nn.functional as F
 
 _DATASET_PATH = "./datasets/frame_sequences"
 _DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 _EPOCHS = 20  # Number of Epochs
-_LEARNING_RATE = 0.0001  # Learning rate for optimizer in training
-_WEIGHT_DECAY = 0.00001  # Weight decay for optimizer in training
+_LEARNING_RATE = 0.001  # Learning rate for optimizer in training
+_WEIGHT_DECAY = 0.0001  # Weight decay for optimizer in training
 _TRAINED_MODEL_SAVE_PATH = "./saved_models"
-_TO_PREPROCESS_DATA = False
+_TO_PREPROCESS_DATA = True  # Set to False after first run
 _NUM_OF_CLASSES = 6  # Number of classes in the dataset
-
-
-# def custom_collate_fn(batch):
-#     """Custom Collate Function to ensure that batches are in the correct format"""
-
-#     # Collect labels and convert to tensor
-#     labels = torch.tensor([item[0] for item in batch])
-#     sequences = [item[1] for item in batch]  # Collect sequences of images
-#     return labels, sequences
-
-
-def __dataloader_debug(dataloader):
-    """Function used to debug the dataloader"""
-
-    print("Debugging dataloader...\n")
-
-    for behavior_batch, sequence_batch in dataloader:
-        # Print behavior batch
-        print(f"behavior batch type: {type(behavior_batch)}")
-        print(f"behavior batch length: {len(behavior_batch)}")
-        print(f"behavior batch: {behavior_batch}")
-        print(f"behavior batch shape: {behavior_batch.shape}")
-
-        # Print sequence batch
-        print(f"\nsequence batch type: {type(sequence_batch)}")
-        print(f"sequence batch length: {len(sequence_batch)}")
-        # print(f"image shape: {image.shape}")
-
-        # Print single instance of sequence
-        for sequence in sequence_batch:
-            print(type(sequence))
-            print(len(sequence))
-            print(sequence.shape)
-            print(type(sequence[0]))
-            print(sequence[0].shape)
-            break
-
-        break
 
 
 def calculate_class_metrics(true_labels, predicted_labels, num_classes):
@@ -74,6 +36,32 @@ def calculate_class_metrics(true_labels, predicted_labels, num_classes):
     )
     
     return class_accuracies
+
+
+def collate_fn(batch):
+    """Pads sequences in batch to same length"""
+    # Separate behaviors and sequences
+    behaviors, sequences = zip(*batch)
+    
+    # Get max sequence length in this batch
+    max_len = max(seq.size(0) for seq in sequences)
+    
+    # Pad each sequence to max_len
+    padded_sequences = []
+    for seq in sequences:
+        pad_len = max_len - seq.size(0)
+        if pad_len > 0:
+            # Pad with zeros at the end
+            padded = F.pad(seq, (0, 0, 0, pad_len))
+            padded_sequences.append(padded)
+        else:
+            padded_sequences.append(seq)
+    
+    # Stack all sequences and behaviors
+    padded_sequences = torch.stack(padded_sequences)
+    behaviors = torch.stack([torch.tensor(b) for b in behaviors])
+    
+    return behaviors, padded_sequences
 
 
 def train_model(train_dataloader, val_dataloader):
@@ -105,7 +93,8 @@ def train_model(train_dataloader, val_dataloader):
         verbose=True
     )
 
-    scaler = torch.amp.GradScaler('cuda')
+    # Use device-agnostic scaler
+    scaler = torch.amp.GradScaler() if _DEVICE == "cuda" else None
     best_val_loss = float('inf')
     patience = 5
     patience_counter = 0
@@ -128,15 +117,24 @@ def train_model(train_dataloader, val_dataloader):
 
             optimizer.zero_grad()
 
-            with torch.amp.autocast('cuda'):
+            if _DEVICE == "cuda":
+                with torch.amp.autocast(device_type=_DEVICE):
+                    output = CLIP_LSTM(s_batch)
+                    loss = criterion(output, b_batch)
+
+                scaler.scale(loss).backward()
+                torch.nn.utils.clip_grad_norm_(
+                    CLIP_LSTM.parameters(), max_norm=1.0)
+                scaler.step(optimizer)
+                scaler.update()
+            else:
+                # Without mixed precision for CPU
                 output = CLIP_LSTM(s_batch)
                 loss = criterion(output, b_batch)
-
-            scaler.scale(loss).backward()
-            torch.nn.utils.clip_grad_norm_(
-                CLIP_LSTM.parameters(), max_norm=1.0)
-            scaler.step(optimizer)
-            scaler.update()
+                loss.backward()
+                torch.nn.utils.clip_grad_norm_(
+                    CLIP_LSTM.parameters(), max_norm=1.0)
+                optimizer.step()
 
             running_loss += loss.item()
             predicted = torch.argmax(output, dim=1)
@@ -232,6 +230,9 @@ def validate_model(model, val_dataloader, criterion):
 
 def save_model_weights(file_name):
     """Saves model weights to disk"""
+    if not os.path.exists(_TRAINED_MODEL_SAVE_PATH):
+        os.makedirs(_TRAINED_MODEL_SAVE_PATH)
+        
     torch.save(CLIP_LSTM.state_dict(), os.path.join(
         _TRAINED_MODEL_SAVE_PATH, file_name))  # Save Model Weights
 
@@ -242,6 +243,7 @@ if __name__ == "__main__":
     CLIP_LSTM = HybridModel()
     CLIP_LSTM.to(_DEVICE)
 
+    # Set to False after first run to avoid reprocessing images
     full_dataset = DisDriveDataset(
         _DATASET_PATH, CLIP_LSTM, _TO_PREPROCESS_DATA)
 
@@ -263,16 +265,18 @@ if __name__ == "__main__":
 
     train_dataloader = DataLoader(
         train_dataset,
-        batch_size=32,  # Reduced batch size for better stability
+        batch_size=32,
         pin_memory=True,
-        shuffle=True
+        shuffle=True,
+        collate_fn=collate_fn  # Add this line
     )
 
     val_dataloader = DataLoader(
         val_dataset,
         batch_size=32,
         pin_memory=True,
-        shuffle=False
+        shuffle=False,
+        collate_fn=collate_fn  # Add this line
     )
 
     train_model(train_dataloader, val_dataloader)

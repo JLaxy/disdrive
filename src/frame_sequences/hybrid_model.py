@@ -42,30 +42,6 @@ class HybridModel(nn.Module):
         # REQUIRED; Initializing parent class
         super().__init__()
 
-        # # Add to model initialization
-        # self.augmentation = transforms.Compose([
-        #     transforms.RandomHorizontalFlip(p=0.3),
-        #     transforms.ColorJitter(brightness=0.2, contrast=0.2)
-        # ])
-
-        # # Safer parameters if original ones cause issues
-        # self.augmentation = transforms.Compose([
-        #     transforms.RandomHorizontalFlip(p=0.3),
-        #     transforms.ColorJitter(
-        #         brightness=0.1,  # reduced from 0.2
-        #         contrast=0.1,    # reduced from 0.2
-        #         saturation=0.1,  # reduced from 0.2
-        #         hue=0.05        # reduced from 0.1
-        #     ),
-        #     transforms.RandomAffine(
-        #         degrees=(-3, 3),  # reduced from (-5, 5)
-        #         translate=(0.05, 0.05),  # reduced from (0.1, 0.1)
-        #         scale=(0.95, 1.05)  # reduced from (0.9, 1.1)
-        #     ),
-        #     transforms.RandomPerspective(distortion_scale=0.1, p=0.2),  # reduced values
-        #     transforms.RandomGrayscale(p=0.05)  # reduced from 0.1
-        # ])
-
         self.current_sequence_id = None
         self.sequence_params = {
             'flip': False,
@@ -93,7 +69,7 @@ class HybridModel(nn.Module):
             nn.Linear(512, 256),
             nn.ReLU(),
             nn.Dropout(0.3)
-        )
+        ).to(_DEVICE)
 
         # Initalizing LSTM Neural Network
         self.lstm: torch.nn.LSTM = torch.nn.LSTM(
@@ -111,9 +87,9 @@ class HybridModel(nn.Module):
 
     def forward(self, tensor_sequence):
         """Processes input to the hybrid model to detect distracted driving"""
-
-        # Reshape the input for batch processing
+        # tensor_sequence shape should be [batch_size, seq_len, 512]
         batch_size, seq_len, feat_dim = tensor_sequence.shape
+        
         # Combine batch and sequence dimensions
         reshaped_input = tensor_sequence.view(-1, feat_dim)
 
@@ -126,6 +102,7 @@ class HybridModel(nn.Module):
         # LSTM Forward Pass
         lstm_output, (h_n, c_n) = self.lstm(adapted_sequence)
 
+        # Use the last output state for classification
         last_state = lstm_output[:, -1, :]
         output = self.fc(last_state)
 
@@ -146,20 +123,15 @@ class HybridModel(nn.Module):
         image = Image.open(frame_path)
 
         # Apply augmentation before CLIP preprocessing
-        if False:
-            # If this is a new sequence, generate new augmentation parameters
-            if sequence_id != self.current_sequence_id:
-                self.current_sequence_id = sequence_id
-                self._reset_sequence_params()
+        if sequence_id != self.current_sequence_id:
+            self.current_sequence_id = sequence_id
+            self._reset_sequence_params()
 
-            # Apply consistent augmentation
-            image = self._apply_sequence_augmentation(image)
+        # Apply consistent augmentation
+        image = self._apply_sequence_augmentation(image)
 
         preprocessed = self.preprocessor(image).unsqueeze(
             0).to(_DEVICE)  # Open image, preprocess then save to device
-
-        # preprocessed = self.preprocessor(Image.open(frame_path)).unsqueeze(
-        #     0).to(_DEVICE)  # Open image, preprocess then save to device
 
         with torch.no_grad():
             features = self.clip_model.encode_image(
@@ -217,17 +189,17 @@ class HybridModel(nn.Module):
     def _reset_sequence_params(self):
         """Reset augmentation parameters for new sequence with more robust values"""
         self.sequence_params = {
-            'flip': random.random() < 0.5,  # Increased from 0.3
-            'brightness': random.uniform(-0.2, 0.2),  # Increased from ±0.1
-            'contrast': random.uniform(-0.2, 0.2),    # Increased from ±0.1
-            'saturation': random.uniform(-0.2, 0.2),  # Increased from ±0.1
-            'hue': random.uniform(-0.1, 0.1),        # Increased from ±0.05
-            'angle': random.uniform(-5, 5),          # Increased from ±3
+            'flip': random.random() < 0.3,
+            'brightness': random.uniform(-0.1, 0.1),
+            'contrast': random.uniform(-0.1, 0.1),
+            'saturation': random.uniform(-0.1, 0.1),
+            'hue': random.uniform(-0.05, 0.05),
+            'angle': random.uniform(-3, 3),
             'translate': (
-                random.uniform(-0.1, 0.1),           # Increased from ±0.05
-                random.uniform(-0.1, 0.1)
+                random.uniform(-0.05, 0.05),
+                random.uniform(-0.05, 0.05)
             ),
-            'scale': random.uniform(0.9, 1.1)        # Increased from 0.95-1.05
+            'scale': random.uniform(0.95, 1.05)
         }
 
     def _apply_sequence_augmentation(self, image):
@@ -282,7 +254,7 @@ class DisDriveDataset(Dataset):
         features = []  # List containing features of frames
 
         # For every feature in feature_path path
-        for feature_file in os.listdir(feature_path):
+        for feature_file in sorted(os.listdir(feature_path)):
             # Create path of feature
             path = os.path.join(
                 feature_path, feature_file)
@@ -292,7 +264,9 @@ class DisDriveDataset(Dataset):
             # Add to list
             features.append(feature)
 
-        return behavior, numpy.array(features)
+        # Convert to torch tensor with proper dtype
+        features_tensor = torch.tensor(numpy.array(features), dtype=torch.float32)
+        return torch.tensor(behavior, dtype=torch.long), features_tensor
 
     def __len__(self):
         """Returns length of dataset"""
