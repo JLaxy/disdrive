@@ -18,4 +18,7 @@ with torch.no_grad():
 
     print(logits_per_image.shape)
 
-print("Label probs:", probs)  # prints: [[0.9927937  0.00421068 0.00299572]]
+    # Format probabilities to 7 decimal places
+    formatted_probs = [[f"{p:.7f}" for p in prob_array]
+                       for prob_array in probs]
+    print("Label probs:", formatted_probs)

@@ -148,7 +148,6 @@ class HybridModel(nn.Module):
 
         print(f"Successfully Loaded! Using device: {_DEVICE}")
 
-    @torch.no_grad()
     def extract_features(self, image: Image.Image):
         """Process image through CLIP and return the 512-dim feature"""
         preprocessed = self.preprocessor(image).unsqueeze(0).to(_DEVICE)

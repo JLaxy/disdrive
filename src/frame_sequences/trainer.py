@@ -17,7 +17,7 @@ _LEARNING_RATE = 0.0001  # Learning rate for optimizer in training
 _WEIGHT_DECAY = 0.00001  # Weight decay for optimizer in training
 _TRAINED_MODEL_SAVE_PATH = "./saved_models"
 _TO_PREPROCESS_DATA = False
-_TO_USE_PRECOMPUTED = True  # Use precomputed features or not
+_TO_USE_PRECOMPUTED = False  # Use precomputed features or not
 _NUM_OF_CLASSES = 6  # Number of classes in the dataset
 
 stage1_thresholds = {
@@ -113,16 +113,6 @@ def calculate_class_metrics(true_labels, predicted_labels, num_classes):
     )
 
     return class_accuracies
-
-
-def log_gradient_norms(model, epoch, target_norm=1.0):
-    print(f"\n[Gradient Norms - Epoch {epoch+1}]")
-    for name, param in model.named_parameters():
-        if param.grad is not None:
-            grad_norm = param.grad.norm(2).item()
-            print(f"{name}: L2 Grad Norm = {grad_norm:.6f} (Target: {target_norm})")
-        else:
-            print(f"{name}: No gradient.")
 
 
 def monitor_gradients(model, epoch, thresholds):
@@ -255,6 +245,8 @@ def train_stage(model, train_dataloader, val_dataloader, criterion, optimizer,
     """
     Trains for a specific stage with the given optimizer
     """
+    model.train()
+
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
         optimizer, mode='min', factor=0.5, patience=2, min_lr=1e-6, verbose=True
     )
@@ -287,16 +279,17 @@ def train_stage(model, train_dataloader, val_dataloader, criterion, optimizer,
                 output = model(s_batch, v_batch)
                 loss = criterion(output, b_batch)
 
-            for name, param in model.named_parameters():
-                if param.requires_grad and param.grad is None:
-                    print(f"❌ No grad for {name}")
-
             scaler.scale(loss).backward()
 
             # Unscale and check gradients
             scaler.unscale_(optimizer)
             # Clip & step
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+
+            for name, param in model.named_parameters():
+                if param.requires_grad and param.grad is None:
+                    print(f"❌ No grad for {name}")
+
             scaler.step(optimizer)
             scaler.update()
 
@@ -559,7 +552,6 @@ def train_model_frozen(train_dataloader, val_dataloader):
 
 
 if __name__ == "__main__":
-    freeze_support()
     CLIP_LSTM = HybridModel(_TO_USE_PRECOMPUTED)
     CLIP_LSTM.to(_DEVICE)
 
@@ -596,5 +588,5 @@ if __name__ == "__main__":
         shuffle=False,
     )
 
-    train_model_frozen(train_dataloader, val_dataloader)
+    train_model(train_dataloader, val_dataloader)
     save_model_weights("final_model.pth")

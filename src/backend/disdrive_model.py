@@ -330,7 +330,7 @@ class DisdriveModel:
 
                 # Create view tensor with correct batch dimension
                 view_tensor = torch.tensor(
-                    [1], device=_DEVICE).long()  # [1] for batch size 1
+                    [0], device=_DEVICE).long()  # [1] for batch size 1
 
                 # Run model inference
                 output = self.model(
