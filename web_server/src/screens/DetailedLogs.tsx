@@ -500,5 +500,4 @@ function DetailedLogs() {
     </Container>
   );
 }
-
 export default DetailedLogs;
