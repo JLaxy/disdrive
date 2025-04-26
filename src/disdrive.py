@@ -8,7 +8,9 @@ import sys
 import pexpect
 import os
 import pygame
+import time
 import threading
+import evdev
 from pynput import keyboard
 
 _PATH_TO_DB = "./database/disdrive_db.db"
@@ -62,6 +64,20 @@ async def handle_system_action(websocket_service: WebsocketService, message_hand
                     print(f"Error shutting down system: {e}")
                     # os.system("sudo shutdown-h now")
                 sys.exit(0)
+            case "restart_system":
+                print("Restarting system...")
+                if hasattr(websocket_service, 'message_handler'):
+                    await websocket_service.message_handler.shutdown_system(None, websocket_service)
+                sudo_password = os.environ.get('SUDO_PASSWORD', 'Disdrive1234')
+                try:
+                    child = pexpect.spawn('sudo shutdown -r now')
+                    child.expect('password')
+                    child.sendline(sudo_password)
+                    child.expect(pexpect.EOF)
+                except Exception as e:
+                    print(f"Error shutting down system: {e}")
+                    # os.system("sudo shutdown-h now")
+                sys.exit(0)
     except Exception as e:
         print(f"Error in handle_system_action: {e}")
     finally:
@@ -78,17 +94,31 @@ def on_key_press(key, websocket_service, hybrid_model):
 
             match key.char.upper():
                 case 'A':
+                    # Start sounds
+                    threading.Thread(target=play_sound, args=("src/assets/started.mp3", 0), daemon=True).start()
                     print("Start key pressed")
                     loop.run_until_complete(handle_system_action(
                         websocket_service, hybrid_model, "start_session"))
                 case 'B':
+                    # Stop sounds
+                    threading.Thread(target=play_sound, args=("src/assets/stopped.mp3", 0), daemon=True).start()
                     print("Stop key pressed")
                     loop.run_until_complete(handle_system_action(
                         websocket_service, hybrid_model, "stop_session"))
                 case 'C':
                     print("Shutdown key pressed")
+                    # Shutdown sounds
+                    threading.Thread(target=play_sound, args=("src/assets/end.mp3", 0), daemon=True).start()
+                    time.sleep(5)
                     loop.run_until_complete(handle_system_action(
                         websocket_service, hybrid_model, "shutdown_system"))
+                case 'D':
+                    print("Restart key pressed")
+                    # Restart sounds
+                    threading.Thread(target=play_sound, args=("src/assets/restart.mp3", 0), daemon=True).start()
+                    time.sleep(5)
+                    loop.run_until_complete(handle_system_action(
+                        websocket_service, hybrid_model, "restart_system"))
 
             loop.close()
     except Exception as e:
