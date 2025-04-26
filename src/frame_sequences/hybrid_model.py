@@ -51,29 +51,24 @@ class HybridModel(nn.Module):
         # REQUIRED; Initializing parent class
         super().__init__()
 
-        # # Add to model initialization
-        # self.augmentation = transforms.Compose([
-        #     transforms.RandomHorizontalFlip(p=0.3),
-        #     transforms.ColorJitter(brightness=0.2, contrast=0.2)
-        # ])
-
-        # # Safer parameters if original ones cause issues
-        # self.augmentation = transforms.Compose([
-        #     transforms.RandomHorizontalFlip(p=0.3),
-        #     transforms.ColorJitter(
-        #         brightness=0.1,  # reduced from 0.2
-        #         contrast=0.1,    # reduced from 0.2
-        #         saturation=0.1,  # reduced from 0.2
-        #         hue=0.05        # reduced from 0.1
-        #     ),
-        #     transforms.RandomAffine(
-        #         degrees=(-3, 3),  # reduced from (-5, 5)
-        #         translate=(0.05, 0.05),  # reduced from (0.1, 0.1)
-        #         scale=(0.95, 1.05)  # reduced from (0.9, 1.1)
-        #     ),
-        #     transforms.RandomPerspective(distortion_scale=0.1, p=0.2),  # reduced values
-        #     transforms.RandomGrayscale(p=0.05)  # reduced from 0.1
-        # ])
+        # Safer parameters if original ones cause issues
+        self.augmentation = transforms.Compose([
+            transforms.RandomHorizontalFlip(p=0.3),
+            transforms.ColorJitter(
+                brightness=0.1,  # reduced from 0.2
+                contrast=0.1,    # reduced from 0.2
+                saturation=0.1,  # reduced from 0.2
+                hue=0.05        # reduced from 0.1
+            ),
+            transforms.RandomAffine(
+                degrees=(-3, 3),  # reduced from (-5, 5)
+                translate=(0.05, 0.05),  # reduced from (0.1, 0.1)
+                scale=(0.95, 1.05)  # reduced from (0.9, 1.1)
+            ),
+            transforms.RandomPerspective(
+                distortion_scale=0.1, p=0.2),  # reduced values
+            transforms.RandomGrayscale(p=0.05)  # reduced from 0.1
+        ])
 
         self.use_precomputed = use_precomputed  # Use precomputed features or not
         self.current_sequence_id = None
@@ -94,9 +89,6 @@ class HybridModel(nn.Module):
         self.clip_model, self.preprocessor = clip.load(
             _MODEL, device=_DEVICE, jit=False)
         self.preprocessor = self.get_letterbox_preprocessor()
-
-        for param in self.clip_model.parameters():
-            param.requires_grad = False
 
         print("Loading LSTM model...")
 
@@ -224,7 +216,7 @@ class HybridModel(nn.Module):
         image = Image.open(frame_path)
 
         # Apply augmentation before CLIP preprocessing
-        if False:
+        if True:
             # If this is a new sequence, generate new augmentation parameters
             if sequence_id != self.current_sequence_id:
                 self.current_sequence_id = sequence_id
@@ -236,15 +228,13 @@ class HybridModel(nn.Module):
         preprocessed = self.preprocessor(image).unsqueeze(
             0).to(_DEVICE)  # Open image, preprocess then save to device
 
-        with torch.no_grad():
-            features = self.clip_model.encode_image(
-                preprocessed)  # Extract features
+        # print(f"Preprocessed: {preprocessed.shape}"); torch.Size([1, 3, 224, 224])
 
         # Edit dimension then convert to numpy
-        features = features.squeeze(0).cpu().numpy()
+        preprocessed = preprocessed.cpu().numpy()
         save_name = os.path.join(
             save_directory, f"{frame_name.replace('.jpg', '')}_view{view_type}")
-        numpy.save(save_name, features)  # Save feature to disk
+        numpy.save(save_name, preprocessed)  # Save preprocessed to disk
 
     # Letterbox helper
     def letterbox_image(self, image: Image.Image, size=(224, 224), fill_color=(0, 0, 0)):
@@ -351,26 +341,22 @@ class DisDriveDataset(Dataset):
         self.__process_dataset()
 
     def __getitem__(self, index):
-        behavior, feature_path, view_type = self.dataset_data[index]
-        features = []
-        images = []
-        if self.hybrid_model.use_precomputed:
+        behavior, preprocessed_path, view_type = self.dataset_data[index]
+        preprocesseds = []
+        for preprocessed in sorted(os.listdir(preprocessed_path), key=natural_sort_key):
+            if not preprocessed.endswith(".npy"):
+                continue
 
-            for feature_file in sorted(os.listdir(feature_path)):
-                if not feature_file.endswith(".npy"):
-                    continue
-                path = os.path.join(feature_path, feature_file)
-                feature = numpy.load(path)
-                features.append(feature)
+            # Open saved preprocessed image
+            path = os.path.join(preprocessed_path, preprocessed)
+            preprocessed = numpy.load(path)
+            # Convert to tensor and add to list
+            preprocessed = torch.tensor(preprocessed, device=_DEVICE)
 
-            return torch.tensor(behavior), torch.tensor(features, dtype=torch.float32), torch.tensor(view_type)
-        else:
-            for image in sorted(feature_path):
-                if not image.endswith(".jpg"):
-                    continue
-                images.append(
-                    self.hybrid_model.extract_features(Image.open(image)))
-            return torch.tensor(behavior, device='cpu'), torch.stack(images).cpu(), torch.tensor(view_type, device='cpu')
+            preprocesseds.append(self.hybrid_model.clip_model.encode_image(
+                preprocessed).squeeze(0))  # Extract features then add to list
+
+        return torch.tensor(behavior, device='cpu'), torch.stack(preprocesseds).cpu(), torch.tensor(view_type, device='cpu')
 
     def __len__(self):
         """Returns length of dataset"""

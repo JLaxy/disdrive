@@ -17,7 +17,7 @@ _LEARNING_RATE = 0.0001  # Learning rate for optimizer in training
 _WEIGHT_DECAY = 0.00001  # Weight decay for optimizer in training
 _TRAINED_MODEL_SAVE_PATH = "./saved_models"
 _TO_PREPROCESS_DATA = False
-_TO_USE_PRECOMPUTED = False  # Use precomputed features or not
+_TO_USE_PRECOMPUTED = True  # Use precomputed features or not
 _NUM_OF_CLASSES = 6  # Number of classes in the dataset
 
 stage1_thresholds = {
@@ -407,7 +407,7 @@ def train_model_frozen(train_dataloader, val_dataloader):
     class_weights = class_weights / class_weights.sum()
     class_weights = class_weights.to(_DEVICE)
 
-    criterion = nn.CrossEntropyLoss(weight=class_weights, label_smoothing=0.1)
+    criterion = nn.CrossEntropyLoss(weight=class_weights, label_smoothing=0.2)
     optimizer = torch.optim.AdamW(
         CLIP_LSTM.parameters(),
         lr=_LEARNING_RATE,
@@ -588,5 +588,6 @@ if __name__ == "__main__":
         shuffle=False,
     )
 
-    train_model(train_dataloader, val_dataloader)
+    # train_model(train_dataloader, val_dataloader)
+    train_model_frozen(train_dataloader, val_dataloader)
     save_model_weights("final_model.pth")

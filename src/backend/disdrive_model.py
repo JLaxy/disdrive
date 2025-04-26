@@ -31,7 +31,7 @@ _FRAME_SKIP = 1  # Process every frame for smoother detection
 _FRAME_WIDTH = 224  # Standard size for model input
 _FRAME_HEIGHT = 224  # Standard size for model input
 _BUFFER_SIZE = 20  # Frames to analyze
-_SLIDING_WINDOW_STEP = 3  # Slide window by this many frames
+_SLIDING_WINDOW_STEP = 5  # Slide window by this many frames
 _MAX_WORKERS = max(4, multiprocessing.cpu_count() - 2)  # Use more CPU cores
 _FEATURE_QUEUE_SIZE = 20  # Larger queue
 _FRAME_QUEUE_SIZE = 20  # Larger queue sizesize
@@ -330,7 +330,7 @@ class DisdriveModel:
 
                 # Create view tensor with correct batch dimension
                 view_tensor = torch.tensor(
-                    [0], device=_DEVICE).long()  # [1] for batch size 1
+                    [1], device=_DEVICE).long()  # [1] for batch size 1
 
                 # Run model inference
                 output = self.model(
