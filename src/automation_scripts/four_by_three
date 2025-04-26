@@ -1,0 +1,46 @@
+import cv2
+import os
+
+def crop_to_4_3(image):
+    height, width = image.shape[:2]
+    target_ratio = 4 / 3
+
+    if width / height > target_ratio:
+        new_width = int(height * target_ratio)
+        new_height = height
+    else:
+        new_width = width
+        new_height = int(width / target_ratio)
+
+    x_start = (width - new_width) // 2
+    y_start = (height - new_height) // 2
+
+    cropped = image[y_start:y_start + new_height, x_start:x_start + new_width]
+    return cropped
+
+def crop_images_in_folder_recursive(input_root, output_root):
+    supported_exts = (".jpg", ".jpeg", ".png", ".bmp")
+
+    for root, dirs, files in os.walk(input_root):
+        for file_name in files:
+            if file_name.lower().endswith(supported_exts):
+                input_path = os.path.join(root, file_name)
+                rel_path = os.path.relpath(root, input_root)
+                output_dir = os.path.join(output_root, rel_path)
+                os.makedirs(output_dir, exist_ok=True)
+
+                image = cv2.imread(input_path)
+                if image is None:
+                    print(f"⚠️ Could not read: {input_path}")
+                    continue
+
+                cropped = crop_to_4_3(image)
+                output_path = os.path.join(output_dir, file_name)
+                cv2.imwrite(output_path, cropped)
+                print(f"✅ Cropped and saved: {output_path}")
+
+# 🔧 Example usage:
+input_root = r"C:\Users\richa\Desktop\disdrive\datasets\test_train_validate\sort_dataset\For Validation"
+output_root = r"C:\Users\richa\Desktop\disdrive\datasets\test_train_validate\sort_dataset\For Validation"
+
+crop_images_in_folder_recursive(input_root, output_root)
