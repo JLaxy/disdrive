@@ -165,11 +165,11 @@ def visualize_preprocessing(image_path):
     # Plot
     fig, ax = plt.subplots(1, 3, figsize=(15, 5))
     ax[0].imshow(original_img)
-    ax[0].set_title('Original')
+    ax[0].set_title('Original Photo')
     ax[1].imshow(clip_img)
-    ax[1].set_title('Standard CLIP (224x224)')
+    ax[1].set_title('Standard CLIP Cropping')
     ax[2].imshow(aspect_img)
-    ax[2].set_title('Aspect Ratio Preserved')
+    ax[2].set_title('Letterbox Croppping')
     plt.show()
 
 

@@ -7,6 +7,7 @@ import os
 from torch.utils.data import Dataset
 from PIL import Image
 import PIL
+import re
 from torchvision import transforms
 from PIL import Image, ImageOps
 from torchvision.transforms import Compose, ToTensor, Normalize
@@ -20,9 +21,11 @@ _DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 _NUM_OF_CLASSES = 6
 
 """LSTM Parameters"""
-_LSTM_INPUT_SIZE = 256
-_LSTM_HIDDEN_SIZE = 256
+_LSTM_INPUT_SIZE = 256  # Changed to match adapter output
+_LSTM_HIDDEN_SIZE = 128
 _LSTM_NUM_LAYERS = 2
+_VIEW_EMBEDDING_DIM = 64
+_CLIP_OUTPUT_DIM = 512
 
 _BEHAVIOR_LABEL = {
     "a": 0,  # Safe Driving
@@ -34,14 +37,43 @@ _BEHAVIOR_LABEL = {
 }
 
 
+def natural_sort_key(s):
+    """Convert string with numbers into tuple of strings and integers"""
+    return [int(text) if text.isdigit() else text.lower()
+            for text in re.split(r'(\d+)', s)]
+
+
 class HybridModel(nn.Module):
     """The class of the CLIP-LSTM hybrid used for distracted driving detection."""
 
-    def __init__(self):
+    def __init__(self, use_precomputed: bool):
         """Initializes instance of CLIP-LSTM hybrid model"""
         # REQUIRED; Initializing parent class
         super().__init__()
 
+<<<<<<< HEAD
+=======
+        # Safer parameters if original ones cause issues
+        self.augmentation = transforms.Compose([
+            transforms.RandomHorizontalFlip(p=0.3),
+            transforms.ColorJitter(
+                brightness=0.1,  # reduced from 0.2
+                contrast=0.1,    # reduced from 0.2
+                saturation=0.1,  # reduced from 0.2
+                hue=0.05        # reduced from 0.1
+            ),
+            transforms.RandomAffine(
+                degrees=(-3, 3),  # reduced from (-5, 5)
+                translate=(0.05, 0.05),  # reduced from (0.1, 0.1)
+                scale=(0.95, 1.05)  # reduced from (0.9, 1.1)
+            ),
+            transforms.RandomPerspective(
+                distortion_scale=0.1, p=0.2),  # reduced values
+            transforms.RandomGrayscale(p=0.05)  # reduced from 0.1
+        ])
+
+        self.use_precomputed = use_precomputed  # Use precomputed features or not
+>>>>>>> 90051f9f22d99db678cb7b1cb8bc3a07065a7b87
         self.current_sequence_id = None
         self.sequence_params = {
             'flip': False,
@@ -56,23 +88,39 @@ class HybridModel(nn.Module):
 
         print("Loading CLIP model...")
 
-        # Loading CLIP model
+        # CLIP model outputs 512-dimensional features
         self.clip_model, self.preprocessor = clip.load(
             _MODEL, device=_DEVICE, jit=False)
-
         self.preprocessor = self.get_letterbox_preprocessor()
 
         print("Loading LSTM model...")
 
-        # Adapter for CLIP model
+        # View embedding (2 views -> 64 dim)
+        self.view_embedding = nn.Embedding(
+            num_embeddings=2,  # front/side view
+            embedding_dim=_VIEW_EMBEDDING_DIM,
+            device=_DEVICE
+        )
+
+        # View attention (64 -> 512)
+        self.view_attention = nn.Sequential(
+            nn.Linear(_VIEW_EMBEDDING_DIM, _CLIP_OUTPUT_DIM),
+            nn.Tanh(),
+            nn.Linear(_CLIP_OUTPUT_DIM, _CLIP_OUTPUT_DIM),
+            nn.Sigmoid()
+        )
+
+        # Adapter (512 + 64 -> 256)
         self.adapter = nn.Sequential(
-            nn.Linear(512, 256),
+            nn.Linear(_CLIP_OUTPUT_DIM +
+                      _VIEW_EMBEDDING_DIM, _LSTM_INPUT_SIZE),
+            nn.LayerNorm(_LSTM_INPUT_SIZE),
             nn.ReLU(),
             nn.Dropout(0.3)
         ).to(_DEVICE)
 
-        # Initalizing LSTM Neural Network
-        self.lstm: torch.nn.LSTM = torch.nn.LSTM(
+        # LSTM (256 -> 128)
+        self.lstm = nn.LSTM(
             input_size=_LSTM_INPUT_SIZE,
             hidden_size=_LSTM_HIDDEN_SIZE,
             num_layers=_LSTM_NUM_LAYERS,
@@ -81,10 +129,21 @@ class HybridModel(nn.Module):
             device=_DEVICE
         )
 
+        # Temporal attention (128 -> 1)
+        self.temporal_attention = nn.Sequential(
+            nn.Linear(_LSTM_HIDDEN_SIZE, _LSTM_HIDDEN_SIZE),
+            nn.Tanh(),
+            nn.Linear(_LSTM_HIDDEN_SIZE, 1)
+        )
+
+        self.temporal_dropout = nn.Dropout(0.2)
+
+        # Final classification (128 -> num_classes)
         self.fc = nn.Linear(_LSTM_HIDDEN_SIZE, _NUM_OF_CLASSES, device=_DEVICE)
 
         print(f"Successfully Loaded! Using device: {_DEVICE}")
 
+<<<<<<< HEAD
     def forward(self, tensor_sequence):
         """Processes input to the hybrid model to detect distracted driving"""
         # tensor_sequence shape should be [batch_size, seq_len, 512]
@@ -92,23 +151,76 @@ class HybridModel(nn.Module):
         
         # Combine batch and sequence dimensions
         reshaped_input = tensor_sequence.view(-1, feat_dim)
+=======
+    def extract_features(self, image: Image.Image):
+        """Process image through CLIP and return the 512-dim feature"""
+        preprocessed = self.preprocessor(image).unsqueeze(0).to(_DEVICE)
+        return self.clip_model.encode_image(preprocessed).squeeze(0)
 
-        # Pass through adapter
-        adapted = self.adapter(reshaped_input)
+    def set_clip_grad_status(self, stage):
+        """
+        Set which CLIP layers should have gradients enabled
+        stage: 0 = all frozen, 1 = last few unfrozen, 2 = all unfrozen
+        """
+        # First freeze everything
+        for param in self.clip_model.parameters():
+            param.requires_grad = False
 
-        # Reshape back to sequence form
-        adapted_sequence = adapted.view(batch_size, seq_len, -1)
+        if stage >= 1:
+            # Unfreeze last few transformer blocks
+            layers_to_unfreeze = 2
+            for i, block in enumerate(reversed(self.clip_model.visual.transformer.resblocks)):
+                if i < layers_to_unfreeze:
+                    for param in block.parameters():
+                        param.requires_grad = True
 
-        # LSTM Forward Pass
-        lstm_output, (h_n, c_n) = self.lstm(adapted_sequence)
+        if stage >= 2:
+            # Unfreeze all CLIP layers
+            for param in self.clip_model.parameters():
+                param.requires_grad = True
 
+    def forward(self, tensor_sequence, view_type):
+        # tensor_sequence shape: [batch_size, seq_len, 512]
+        batch_size, seq_len, feat_dim = tensor_sequence.shape
+>>>>>>> 90051f9f22d99db678cb7b1cb8bc3a07065a7b87
+
+        # View embedding: [batch_size, 64] -> [batch_size, seq_len, 64]
+        view_emb = self.view_embedding(view_type.long())
+        view_emb = view_emb.unsqueeze(1).expand(-1, seq_len, -1)
+
+        # View attention: [batch_size, seq_len, 512]
+        view_attention = self.view_attention(view_emb)
+        attended_features = tensor_sequence * view_attention
+
+        # Combine features: [batch_size, seq_len, 576]
+        combined = torch.cat([attended_features, view_emb], dim=2)
+
+<<<<<<< HEAD
         # Use the last output state for classification
         last_state = lstm_output[:, -1, :]
         output = self.fc(last_state)
+=======
+        # Adapter: [batch_size * seq_len, 256]
+        flattened = combined.view(-1, _CLIP_OUTPUT_DIM + _VIEW_EMBEDDING_DIM)
+        adapted = self.adapter(flattened)
+        adapted_sequence = adapted.view(batch_size, seq_len, _LSTM_INPUT_SIZE)
+>>>>>>> 90051f9f22d99db678cb7b1cb8bc3a07065a7b87
 
+        # LSTM: [batch_size, seq_len, 128]
+        lstm_output, _ = self.lstm(adapted_sequence)
+
+        # Temporal attention: [batch_size, seq_len, 1]
+        attention_weights = self.temporal_attention(lstm_output)
+        attention_weights = torch.softmax(attention_weights, dim=1)
+
+        # Weighted sum: [batch_size, 128]
+        attended_output = torch.sum(lstm_output * attention_weights, dim=1)
+
+        # Final classification: [batch_size, num_classes]
+        output = self.fc(attended_output)
         return output
 
-    def preprocess(self, save_directory: str, frame_path: str, frame_name: str, sequence_id: str = None):
+    def preprocess(self, save_directory: str, frame_path: str, frame_name: str, view_type: int, sequence_id: str = None):
         """
         Preprocess image then save to disk
         Args:
@@ -123,9 +235,17 @@ class HybridModel(nn.Module):
         image = Image.open(frame_path)
 
         # Apply augmentation before CLIP preprocessing
+<<<<<<< HEAD
         if sequence_id != self.current_sequence_id:
             self.current_sequence_id = sequence_id
             self._reset_sequence_params()
+=======
+        if True:
+            # If this is a new sequence, generate new augmentation parameters
+            if sequence_id != self.current_sequence_id:
+                self.current_sequence_id = sequence_id
+                self._reset_sequence_params()
+>>>>>>> 90051f9f22d99db678cb7b1cb8bc3a07065a7b87
 
         # Apply consistent augmentation
         image = self._apply_sequence_augmentation(image)
@@ -133,14 +253,19 @@ class HybridModel(nn.Module):
         preprocessed = self.preprocessor(image).unsqueeze(
             0).to(_DEVICE)  # Open image, preprocess then save to device
 
+<<<<<<< HEAD
         with torch.no_grad():
             features = self.clip_model.encode_image(
                 preprocessed)  # Extract features
+=======
+        # print(f"Preprocessed: {preprocessed.shape}"); torch.Size([1, 3, 224, 224])
+>>>>>>> 90051f9f22d99db678cb7b1cb8bc3a07065a7b87
 
         # Edit dimension then convert to numpy
-        features = features.squeeze(0).cpu().numpy()
-        numpy.save(os.path.join(save_directory, frame_name.replace(".jpg", "")),
-                   features)  # Save feature to disk
+        preprocessed = preprocessed.cpu().numpy()
+        save_name = os.path.join(
+            save_directory, f"{frame_name.replace('.jpg', '')}_view{view_type}")
+        numpy.save(save_name, preprocessed)  # Save preprocessed to disk
 
     # Letterbox helper
     def letterbox_image(self, image: Image.Image, size=(224, 224), fill_color=(0, 0, 0)):
@@ -247,12 +372,19 @@ class DisDriveDataset(Dataset):
         self.__process_dataset()
 
     def __getitem__(self, index):
-        """Returns Dataset Data at specific index"""
-        # Retrieve behavior and feature
-        (behavior, feature_path) = self.dataset_data[index]
+        behavior, preprocessed_path, view_type = self.dataset_data[index]
+        preprocesseds = []
+        for preprocessed in sorted(os.listdir(preprocessed_path), key=natural_sort_key):
+            if not preprocessed.endswith(".npy"):
+                continue
 
-        features = []  # List containing features of frames
+            # Open saved preprocessed image
+            path = os.path.join(preprocessed_path, preprocessed)
+            preprocessed = numpy.load(path)
+            # Convert to tensor and add to list
+            preprocessed = torch.tensor(preprocessed, device=_DEVICE)
 
+<<<<<<< HEAD
         # For every feature in feature_path path
         for feature_file in sorted(os.listdir(feature_path)):
             # Create path of feature
@@ -267,6 +399,12 @@ class DisDriveDataset(Dataset):
         # Convert to torch tensor with proper dtype
         features_tensor = torch.tensor(numpy.array(features), dtype=torch.float32)
         return torch.tensor(behavior, dtype=torch.long), features_tensor
+=======
+            preprocesseds.append(self.hybrid_model.clip_model.encode_image(
+                preprocessed).squeeze(0))  # Extract features then add to list
+
+        return torch.tensor(behavior, device='cpu'), torch.stack(preprocesseds).cpu(), torch.tensor(view_type, device='cpu')
+>>>>>>> 90051f9f22d99db678cb7b1cb8bc3a07065a7b87
 
     def __len__(self):
         """Returns length of dataset"""
@@ -292,7 +430,7 @@ class DisDriveDataset(Dataset):
 
                 sequence_folders = os.listdir(behavior_path)
                 sequence_folders = sorted(
-                    sequence_folders, key=lambda x: int(x))  # Sort numerically
+                    sequence_folders, key=natural_sort_key)  # Sort numerically
 
                 # For every grouped sequence in current behavior folder
                 for sequence_folder in sequence_folders:
@@ -303,14 +441,17 @@ class DisDriveDataset(Dataset):
                     sequence_path = os.path.join(
                         behavior_path, sequence_folder)
 
-                    frame_list = []  # List of frames in a sequence of behavior
+                    view_type = 0 if "front" in sequence_path.lower() else 1
 
-                    print(f"Processing {sequence_path}")
+                    print(
+                        f"Processing {sequence_path} (View type: {'front' if view_type == 0 else 'side'})")
 
                     # Get all frames and sort them alphanumerically
                     frames = os.listdir(sequence_path)
                     frames = sorted(frames, key=lambda x: x if x ==
                                     "features_temp" else x.lower())
+
+                    sequence = []
 
                     # For every Frame in Sequence Folder
                     for frame in frames:
@@ -319,21 +460,32 @@ class DisDriveDataset(Dataset):
                             continue
 
                         frame_path = os.path.join(sequence_path, frame)
-                        # Add Frame to List
-                        frame_list.append(frame_path)
 
                         save_path = sequence_path + "/features_temp"
 
                         # If to get features; saves features to disk if True
-                        if self.to_get_features:
+                        if self.to_get_features and self.hybrid_model.use_precomputed:
                             # Pass sequence_folder as sequence_id
                             self.hybrid_model.preprocess(
-                                save_path, frame_path, frame, sequence_id=sequence_folder)
+                                save_path, frame_path, frame, view_type, sequence_id=sequence_folder)
+                        else:
+                            sequence.append(frame_path)
 
-                    self.dataset_data.append(
-                        (behavior, save_path))  # Add to dataset_data
+                    if self.hybrid_model.use_precomputed:
+                        self.dataset_data.append(
+                            # Add to dataset_data
+                            (behavior, save_path, view_type))
+                    else:
+                        self.dataset_data.append(
+                            # Add to dataset_data
+                            (behavior, sequence, view_type))
 
         print(f"Total number of processed sequences: {len(self.dataset_data)}")
+        # Log distribution of views
+        front_count = sum(1 for _, _, v in self.dataset_data if v == 0)
+        side_count = sum(1 for _, _, v in self.dataset_data if v == 1)
+        print(
+            f"Front view sequences: {front_count}, Side view sequences: {side_count}")
 
 
 if __name__ == "__main__":
