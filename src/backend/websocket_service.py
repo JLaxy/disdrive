@@ -20,7 +20,8 @@ class WebsocketService:
         self.database_queries = database_queries
         self.session_manager = SessionManager()
 
-        self.message_handler = MessageHandler(disdrive_model, database_queries, self.session_manager)
+        self.message_handler = MessageHandler(
+            disdrive_model, database_queries, self.session_manager)
 
         # Flags to control server shutdown
         self.livefeed_server = None
@@ -131,29 +132,29 @@ class WebsocketService:
         """Cleanup all websocket connections before shutdown"""
         try:
             print("Cleaning up websocket connections...")
-            
+
             # Close all client connections
             close_tasks = []
-            
+
             # Close livefeed clients
             for client in self.livefeed_clients:
                 close_tasks.append(client.close())
             self.livefeed_clients.clear()
-            
+
             # Close disdrive app clients
             for client in self.disdrive_app_clients:
                 close_tasks.append(client.close())
             self.disdrive_app_clients.clear()
-            
+
             # Wait for all connections to close
             if close_tasks:
                 await asyncio.gather(*close_tasks)
-            
+
             # Stop the servers
             self.stop_servers()
-            
+
             print("✅ Websocket cleanup completed")
-            
+
         except Exception as e:
             print(f"⚠️ Error during websocket cleanup: {e}")
             raise e
@@ -179,6 +180,8 @@ class WebsocketService:
         settings["cameras"] = self.disdrive_model.available_cameras
         # Appending start session time
         settings["session_start"] = self.disdrive_model.log_manager.session_start
+        # Appending camera view
+        settings["camera_view"] = self.disdrive_model.camera_view
 
         return settings
 
@@ -194,13 +197,13 @@ class WebsocketService:
                 for client in self.disdrive_app_clients
             ]
 
-            print(f"Broadcasting settings {settings} to clients {len(self.disdrive_app_clients)}...")
+            print(
+                f"Broadcasting settings {settings} to clients {len(self.disdrive_app_clients)}...")
 
             # Run all broadcast tasks concurrently
             if broadcast_tasks:
                 await asyncio.gather(*broadcast_tasks)
-            
+
             print("✅ Settings broadcasted successfully")
         except Exception as e:
             print(f"Error broadcasting settings: {e}")
-

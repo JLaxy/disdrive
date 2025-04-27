@@ -65,7 +65,8 @@ class MessageHandler:
                 'update_camera': self.update_camera,
                 'toggle_logging': self.toggle_logging,
                 'shutdown_system': self.shutdown_system,
-                'update_retention_days': self.update_retention_days
+                'update_retention_days': self.update_retention_days,
+                'update_camera_view': self.update_camera_view,
             }
 
             # Find and call the appropriate handler
@@ -96,6 +97,35 @@ class MessageHandler:
                 'status': 'error',
                 'message': f'Unexpected error: {str(e)}'
             }
+
+    async def update_camera_view(self, data: Dict[str, Any], websocket_service) -> Dict[str, Any]:
+        try:
+            logger.info("Updating camera view...")
+
+            if isinstance(data, str):
+                try:
+                    data = json.loads(data)
+                except json.JSONDecodeError:
+                    return {'status': 'error', 'message': 'Invalid camera data format'}
+
+            selected_view = data.get('selected_view')
+            if selected_view is None:
+                return {'status': 'error', 'message': 'Invalid selected view'}
+
+            logger.info(f'Updating view to: {selected_view}')
+
+            # Change camera
+            self.disdrive_model.camera_view = selected_view
+            self.database_queries.update_setting('camera_view', selected_view)
+
+            return {
+                'status': 'success',
+                'message': f'View updated to {selected_view}',
+                'data': {'selected_view': selected_view}
+            }
+        except Exception as e:
+            logger.error(f"Failed to update camera: {e}")
+            return {'status': 'error', 'message': str(e)}
 
     async def update_retention_days(self, data: Dict[str, Any], websocket_service) -> Dict[str, Any]:
         try:

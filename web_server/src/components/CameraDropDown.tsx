@@ -15,21 +15,24 @@ const CameraDropDown: React.FC = () => {
   };
 
   return (
-    <Dropdown onSelect={handleSelect}>
-      <Dropdown.Toggle
-        variant="secondary"
-        id="dropdown-basic"
-        className="w-100 text-start justify-content-between d-flex align-items-center"
-      >
-        {`Camera ${camera_id}`}
-      </Dropdown.Toggle>
+    <div className="d-flex flex-column">
+      <p className="mb-0 fw-semibold">Selected Camera</p>
+      <Dropdown onSelect={handleSelect}>
+        <Dropdown.Toggle
+          variant="secondary"
+          id="dropdown-basic"
+          className="w-100 text-start justify-content-between d-flex align-items-center"
+        >
+          {`Camera ${camera_id}`}
+        </Dropdown.Toggle>
 
-      <Dropdown.Menu>
-        {cameras.map((camera) => (
-          <Dropdown.Item eventKey={camera}>Camera {camera}</Dropdown.Item>
-        ))}
-      </Dropdown.Menu>
-    </Dropdown>
+        <Dropdown.Menu>
+          {cameras.map((camera) => (
+            <Dropdown.Item eventKey={camera}>Camera {camera}</Dropdown.Item>
+          ))}
+        </Dropdown.Menu>
+      </Dropdown>
+    </div>
   );
 };
 

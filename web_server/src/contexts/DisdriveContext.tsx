@@ -1,4 +1,11 @@
-import { createContext, useState, useContext, useRef, useEffect, useCallback } from "react";
+import {
+  createContext,
+  useState,
+  useContext,
+  useRef,
+  useEffect,
+  useCallback,
+} from "react";
 
 interface DisdriveContextType {
   is_logging: boolean;
@@ -14,6 +21,8 @@ interface DisdriveContextType {
   setSessionStart: (value: string) => void;
   retention_days: number;
   setRetentionDays: (value: number) => void;
+  current_view: string;
+  setCurrentView: (value: string) => void;
 }
 
 const DisdriveContext = createContext<DisdriveContextType | undefined>(
@@ -31,6 +40,7 @@ export const DisdriveProvider = ({
   const [camera_id, setSelectedCamera] = useState<number>(0);
   const [session_start, setSessionStart] = useState<string>("");
   const [retention_days, setRetentionDays] = useState<number>(15);
+  const [current_view, setCurrentView] = useState<string>("");
   const ws = useRef<WebSocket | null>(null);
 
   const sendMessage = useCallback((data: { action: string; data?: any }) => {
@@ -50,7 +60,7 @@ export const DisdriveProvider = ({
   const handleChange = useCallback((data: Record<string, string>) => {
     switch (data.action) {
       case "toggle_logging":
-        setIsLogging(prev => !prev);
+        setIsLogging((prev) => !prev);
         break;
       case "start_session":
         setHasOngoingSession(true);
@@ -74,6 +84,14 @@ export const DisdriveProvider = ({
           console.error("Failed to parse retention days data:", e);
         }
         break;
+      case "update_camera_view":
+        try {
+          const viewData = JSON.parse(data.data);
+          setCurrentView(viewData.selected_view);
+        } catch (e) {
+          console.error("Failed to parse selected_view data:", e);
+        }
+        break;
       default:
         console.warn("🚫 Invalid action:", data.action);
     }
@@ -90,7 +108,7 @@ export const DisdriveProvider = ({
       try {
         const data = JSON.parse(event.data);
         console.log(`📡 Received message from server: `, data);
-        
+
         if (data) {
           setIsLogging(data.is_logging);
           setHasOngoingSession(data.has_ongoing_session);
@@ -98,6 +116,7 @@ export const DisdriveProvider = ({
           setSelectedCamera(data.camera_id);
           setSessionStart(data.session_start || "");
           setRetentionDays(data.retention_days || 15);
+          setCurrentView(data.camera_view || "");
         }
       } catch (error) {
         console.error("⚠️ Error parsing WebSocket message:", error);
@@ -133,6 +152,8 @@ export const DisdriveProvider = ({
         setSessionStart,
         retention_days,
         setRetentionDays,
+        current_view,
+        setCurrentView,
       }}
     >
       {children}

@@ -76,6 +76,7 @@ class DisdriveModel:
         self.database_queries = database_queries
         self.log_manager = LogManager(self.database_queries)
         self.to_log = None
+        self.camera_view = None
         self.update_session_status()
 
         self._initialize_cameras()
@@ -242,6 +243,7 @@ class DisdriveModel:
 
         self.has_ongoing_session = bool(settings["has_ongoing_session"])
         self.to_log = bool(settings["is_logging"])
+        self.camera_view = settings["camera_view"]
 
     def extract_features(self, frame):
         """Extracts features of retrieved frame from camera with optimized processing"""
@@ -328,9 +330,11 @@ class DisdriveModel:
                 sequence_tensor = torch.stack(
                     buffer_list).unsqueeze(0).to(_DEVICE)
 
+                view = 0 if self.camera_view == "front" else 1
+
                 # Create view tensor with correct batch dimension
                 view_tensor = torch.tensor(
-                    [1], device=_DEVICE).long()  # [1] for batch size 1
+                    [view], device=_DEVICE).long()  # [1] for batch size 1
 
                 # Run model inference
                 output = self.model(

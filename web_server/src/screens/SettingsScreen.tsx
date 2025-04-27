@@ -1,4 +1,4 @@
-import { Card, Col, Container, Form, Row } from "react-bootstrap";
+import { Card, Col, Container, Dropdown, Form, Row } from "react-bootstrap";
 import { useNavigate } from "react-router";
 import CameraDropDown from "../components/CameraDropDown";
 import { useDisdriveContext } from "../contexts/DisdriveContext";
@@ -28,9 +28,42 @@ function SettingsScreen() {
         </Row>
         {GetCheckBox("logging", "Enable Logging")}
         <CameraDropDown />
-        <NumberSpinner/>
+        {GetViewSelector()}
+        <NumberSpinner />
       </Card>
     </Container>
+  );
+}
+
+function GetViewSelector() {
+  const { sendMessage, current_view } = useDisdriveContext();
+
+  const handleSelect = (eventKey: string | null) => {
+    if (eventKey && current_view.toString() != eventKey) {
+      sendMessage({
+        action: "update_camera_view",
+        data: JSON.stringify({ selected_view: eventKey }),
+      });
+    }
+  };
+
+  return (
+    <div className="d-flex flex-column">
+      <p className="mb-0 fw-semibold">Selected View</p>
+      <Dropdown onSelect={handleSelect}>
+        <Dropdown.Toggle
+          variant="secondary"
+          id="dropdown-basic"
+          className="w-100 text-start justify-content-between d-flex align-items-center"
+        >
+          {current_view === "front" ? "Front" : "Side"}
+        </Dropdown.Toggle>
+        <Dropdown.Menu>
+          <Dropdown.Item eventKey={"front"}>Front</Dropdown.Item>
+          <Dropdown.Item eventKey={"side"}>Side</Dropdown.Item>
+        </Dropdown.Menu>
+      </Dropdown>
+    </div>
   );
 }
 

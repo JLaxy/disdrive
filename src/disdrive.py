@@ -10,7 +10,6 @@ import os
 import pygame
 import time
 import threading
-import evdev
 from pynput import keyboard
 
 _PATH_TO_DB = "./database/disdrive_db.db"
@@ -95,27 +94,31 @@ def on_key_press(key, websocket_service, hybrid_model):
             match key.char.upper():
                 case 'A':
                     # Start sounds
-                    threading.Thread(target=play_sound, args=("src/assets/started.mp3", 0), daemon=True).start()
+                    threading.Thread(target=play_sound, args=(
+                        "src/assets/started.mp3", 0), daemon=True).start()
                     print("Start key pressed")
                     loop.run_until_complete(handle_system_action(
                         websocket_service, hybrid_model, "start_session"))
                 case 'B':
                     # Stop sounds
-                    threading.Thread(target=play_sound, args=("src/assets/stopped.mp3", 0), daemon=True).start()
+                    threading.Thread(target=play_sound, args=(
+                        "src/assets/stopped.mp3", 0), daemon=True).start()
                     print("Stop key pressed")
                     loop.run_until_complete(handle_system_action(
                         websocket_service, hybrid_model, "stop_session"))
                 case 'C':
                     print("Shutdown key pressed")
                     # Shutdown sounds
-                    threading.Thread(target=play_sound, args=("src/assets/end.mp3", 0), daemon=True).start()
+                    threading.Thread(target=play_sound, args=(
+                        "src/assets/end.mp3", 0), daemon=True).start()
                     time.sleep(5)
                     loop.run_until_complete(handle_system_action(
                         websocket_service, hybrid_model, "shutdown_system"))
                 case 'D':
                     print("Restart key pressed")
                     # Restart sounds
-                    threading.Thread(target=play_sound, args=("src/assets/restart.mp3", 0), daemon=True).start()
+                    threading.Thread(target=play_sound, args=(
+                        "src/assets/restart.mp3", 0), daemon=True).start()
                     time.sleep(5)
                     loop.run_until_complete(handle_system_action(
                         websocket_service, hybrid_model, "restart_system"))
@@ -162,7 +165,7 @@ async def main():
     keyboard_listener = keyboard.Listener(
         on_press=lambda key: on_key_press(key, websocket_service, hybrid_model)
     )
-    keyboard_listener.start()
+    # keyboard_listener.start()
 
     try:
         # Wait for all tasks

@@ -22,7 +22,8 @@ class DatabaseQueries:
                 "is_logging": True,
                 "camera_id": None,
                 "has_ongoing_session": True,
-                "retention_days": 15
+                "retention_days": 15,
+                "camera_view": "side",
             }
 
         # Safely handle the case where retention_days column might not exist yet
@@ -30,7 +31,8 @@ class DatabaseQueries:
             "is_logging": bool(result[0]),
             "camera_id": result[1],
             "has_ongoing_session": bool(result[2]),
-            "retention_days": 15  # Default value
+            "retention_days": 15,  # Default value
+            "camera_view": result[4],
         }
 
         # Try to get retention_days if it exists
@@ -73,7 +75,8 @@ class DatabaseQueries:
             'is_logging': 'is_logging',
             'camera_id': 'camera_id',
             'has_ongoing_session': 'has_ongoing_session',
-            'retention_days': 'retention_days'
+            'retention_days': 'retention_days',
+            'camera_view': 'camera_view',
         }
 
         # Validate the setting key
