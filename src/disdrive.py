@@ -53,30 +53,28 @@ async def handle_system_action(websocket_service: WebsocketService, message_hand
                 print("Shutting down system...")
                 if hasattr(websocket_service, 'message_handler'):
                     await websocket_service.message_handler.shutdown_system(None, websocket_service)
-                sudo_password = os.environ.get('SUDO_PASSWORD', 'Disdrive1234')
-                try:
-                    child = pexpect.spawn('sudo shutdown -h now')
-                    child.expect('password')
-                    child.sendline(sudo_password)
-                    child.expect(pexpect.EOF)
-                except Exception as e:
-                    print(f"Error shutting down system: {e}")
-                    # os.system("sudo shutdown-h now")
-                sys.exit(0)
+                # sudo_password = os.environ.get('SUDO_PASSWORD', 'Disdrive1234')
+                # try:
+                #     child = pexpect.spawn('sudo shutdown -h now')
+                #     child.expect('password')
+                #     child.sendline(sudo_password)
+                #     child.expect(pexpect.EOF)
+                # except Exception as e:
+                #     print(f"Error shutting down system: {e}")
+                # sys.exit(0)
             case "restart_system":
                 print("Restarting system...")
                 if hasattr(websocket_service, 'message_handler'):
-                    await websocket_service.message_handler.shutdown_system(None, websocket_service)
-                sudo_password = os.environ.get('SUDO_PASSWORD', 'Disdrive1234')
-                try:
-                    child = pexpect.spawn('sudo shutdown -r now')
-                    child.expect('password')
-                    child.sendline(sudo_password)
-                    child.expect(pexpect.EOF)
-                except Exception as e:
-                    print(f"Error shutting down system: {e}")
-                    # os.system("sudo shutdown-h now")
-                sys.exit(0)
+                    await websocket_service.message_handler.restart_system(None, websocket_service)
+                # sudo_password = os.environ.get('SUDO_PASSWORD', 'Disdrive1234')
+                # try:
+                #     child = pexpect.spawn('sudo shutdown -r now')
+                #     child.expect('password')
+                #     child.sendline(sudo_password)
+                #     child.expect(pexpect.EOF)
+                # except Exception as e:
+                #     print(f"Error shutting down system: {e}")
+                # sys.exit(0)
     except Exception as e:
         print(f"Error in handle_system_action: {e}")
     finally:
@@ -93,33 +91,19 @@ def on_key_press(key, websocket_service, hybrid_model):
 
             match key.char.upper():
                 case 'A':
-                    # Start sounds
-                    threading.Thread(target=play_sound, args=(
-                        "src/assets/started.mp3", 0), daemon=True).start()
                     print("Start key pressed")
                     loop.run_until_complete(handle_system_action(
                         websocket_service, hybrid_model, "start_session"))
                 case 'B':
-                    # Stop sounds
-                    threading.Thread(target=play_sound, args=(
-                        "src/assets/stopped.mp3", 0), daemon=True).start()
                     print("Stop key pressed")
                     loop.run_until_complete(handle_system_action(
                         websocket_service, hybrid_model, "stop_session"))
                 case 'C':
                     print("Shutdown key pressed")
-                    # Shutdown sounds
-                    threading.Thread(target=play_sound, args=(
-                        "src/assets/end.mp3", 0), daemon=True).start()
-                    time.sleep(5)
                     loop.run_until_complete(handle_system_action(
                         websocket_service, hybrid_model, "shutdown_system"))
                 case 'D':
                     print("Restart key pressed")
-                    # Restart sounds
-                    threading.Thread(target=play_sound, args=(
-                        "src/assets/restart.mp3", 0), daemon=True).start()
-                    time.sleep(5)
                     loop.run_until_complete(handle_system_action(
                         websocket_service, hybrid_model, "restart_system"))
 
@@ -142,7 +126,7 @@ async def main():
         hybrid_model, database_query)
 
     # Create tasks for detection and websockets
-    detection_task = asyncio.create_task(hybrid_model.detection_loop())
+    hybrid_model._detection_loop_task = asyncio.create_task(hybrid_model.detection_loop())
 
     hybrid_model.log_manager.start_logs_api("0.0.0.0", 8767)
 
@@ -165,12 +149,12 @@ async def main():
     keyboard_listener = keyboard.Listener(
         on_press=lambda key: on_key_press(key, websocket_service, hybrid_model)
     )
-    # keyboard_listener.start()
+    keyboard_listener.start()
 
     try:
         # Wait for all tasks
         await asyncio.gather(
-            detection_task,
+            hybrid_model._detection_loop_task,
             disdrive_socket_task,
             livefeed_socket_task
         )

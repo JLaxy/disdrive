@@ -1,6 +1,8 @@
 import asyncio
 import json
 import logging
+import threading
+import pygame
 from typing import Dict, Any
 from backend.disdrive_model import DisdriveModel
 from backend.database_queries import DatabaseQueries
@@ -9,6 +11,27 @@ from backend.session_manager import SessionManager
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+def play_sound(file_path: str, channel_id=0):
+    """play sound on a specific channel to prevent cutting off other sounds"""
+    pygame.init()
+    if not pygame.mixer.get_init():
+        pygame.mixer.init()
+
+    # Create up to 8 channels (different sounds)
+    if channel_id >= pygame.mixer.get_num_channels():
+        pygame.mixer.set_num_channels(channel_id + 1)
+
+    # Get specific channel
+    channel = pygame.mixer.Channel(channel_id)
+
+    # Load and play sound
+    sound = pygame.mixer.Sound(file_path)
+    channel.play(sound)
+
+    # Only wait for completion if specifically requested
+    if channel_id == 0:
+        while channel.get_busy():
+            pygame.time.wait(100)  # Check less frequently to reduce CPU usage
 
 class MessageHandler:
     def __init__(self, disdrive_model: DisdriveModel, database_queries: DatabaseQueries, session_manager: SessionManager):
@@ -65,6 +88,7 @@ class MessageHandler:
                 'update_camera': self.update_camera,
                 'toggle_logging': self.toggle_logging,
                 'shutdown_system': self.shutdown_system,
+                'restart_system': self.restart_system,
                 'update_retention_days': self.update_retention_days,
                 'update_camera_view': self.update_camera_view,
             }
@@ -187,6 +211,7 @@ class MessageHandler:
         try:
             logger.info("Starting session...")
             if await self.session_manager.resume_operations():
+                threading.Thread(target=play_sound, args=("src/assets/started.mp3", 0), daemon=True).start() # Start sounds
                 self.database_queries.update_setting(
                     'has_ongoing_session', True)
                 self.disdrive_model.log_manager.start_session()
@@ -211,6 +236,7 @@ class MessageHandler:
         try:
             logger.info("Stopping session...")
             if await self.session_manager.pause_operations():
+                threading.Thread(target=play_sound, args=("src/assets/stopped.mp3", 0), daemon=True).start() # Stop sounds
                 self.database_queries.update_setting(
                     'has_ongoing_session', False)
                 self.disdrive_model.update_session_status()
@@ -313,4 +339,29 @@ class MessageHandler:
             return {
                 'status': 'error',
                 'message': f'Failed to shutdown system: {str(e)}'
+            }
+
+    async def restart_system(self, data: Dict[str, Any], websocket_service) -> Dict[str, Any]:
+        """Restart the system"""
+        try:
+            logger.info('Initiating system restart...')
+            # First clean up WebSocket connections
+            await websocket_service.cleanup()
+
+            # Stop the session if it's running
+            if not self.session_manager.is_paused:
+                self.stop_session(data, websocket_service)
+                self.disdrive_model.log_manager.end_session()
+            # Then initiate restart
+            self.session_manager.restart_system()
+
+            return {
+                'status': 'success',
+                'message': 'System restart initiated'
+            }
+        except Exception as e:
+            logger.error(f"Error during restart: {e}")
+            return {
+                'status': 'error',
+                'message': f'Failed to restart system: {str(e)}'
             }
