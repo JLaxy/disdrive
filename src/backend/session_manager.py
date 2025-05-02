@@ -5,6 +5,8 @@ import logging
 import pygame
 import threading
 import time
+import pexpect
+import sys
 
 # Configure logging
 logging.basicConfig(
@@ -73,24 +75,24 @@ class SessionManager:
     def shutdown_system(self):
         """Shuts down the system/program."""
         logging.info("System shutdown initiated...")
-        threading.Thread(target=play_sound, args=("src/assets/end.mp3", 0), daemon=True).start()
+        threading.Thread(target=play_sound, args=("src/assets/shutdown.mp3", 0), daemon=True).start()
         time.sleep(5)
         try:
             # Perform cleanup tasks here if needed
             logging.info("Sending termination signal...")
-            # sudo_password = os.environ.get('SUDO_PASSWORD', 'Disdrive1234')
-            # try:
-            #     child = pexpect.spawn('sudo shutdown -h now')
-            #     child.expect('password')
-            #     child.sendline(sudo_password)
-            #     child.expect(pexpect.EOF)
-            # except Exception as e:
-            #     print(f"Error shutting down system: {e}")
-            # sys.exit(0)
+            sudo_password = os.environ.get('SUDO_PASSWORD', 'Disdrive1234')
+            try:
+                child = pexpect.spawn('sudo shutdown -h now')
+                child.expect('password')
+                child.sendline(sudo_password)
+                child.expect(pexpect.EOF)
+            except Exception as e:
+                print(f"Error shutting down system: {e}")
+            sys.exit(0)
         except Exception as e:
             logging.error(f"Error during shutdown: {e}")
-            # Forceful exit as fallback
-            #os._exit(1)
+            #Forceful exit as fallback
+            os._exit(1)
 
     def restart_system(self):
         """Restarts the system/program."""
@@ -100,16 +102,16 @@ class SessionManager:
         try:
             # Perform cleanup tasks here if needed
             logging.info("Sending termination signal...")
-            # sudo_password = os.environ.get('SUDO_PASSWORD', 'Disdrive1234')
-            # try:
-            #     child = pexpect.spawn('sudo shutdown -r now')
-            #     child.expect('password')
-            #     child.sendline(sudo_password)
-            #     child.expect(pexpect.EOF)
-            # except Exception as e:
-            #     print(f"Error restarting system: {e}")
-            # sys.exit(0)
+            sudo_password = os.environ.get('SUDO_PASSWORD', 'Disdrive1234')
+            try:
+                child = pexpect.spawn('sudo shutdown -r now')
+                child.expect('password')
+                child.sendline(sudo_password)
+                child.expect(pexpect.EOF)
+            except Exception as e:
+                print(f"Error restarting system: {e}")
+            sys.exit(0)
         except Exception as e:
             logging.error(f"Error during restart: {e}")
-            # Forceful exit as fallback
-            #os._exit(1)
+            #Forceful exit as fallback
+            os._exit(1)
