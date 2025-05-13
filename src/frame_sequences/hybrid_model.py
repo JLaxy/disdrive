@@ -51,6 +51,8 @@ class HybridModel(nn.Module):
         # REQUIRED; Initializing parent class
         super().__init__()
 
+<<<<<<< HEAD
+=======
         # Safer parameters if original ones cause issues
         self.augmentation = transforms.Compose([
             transforms.RandomHorizontalFlip(p=0.3),
@@ -71,6 +73,7 @@ class HybridModel(nn.Module):
         ])
 
         self.use_precomputed = use_precomputed  # Use precomputed features or not
+>>>>>>> 90051f9f22d99db678cb7b1cb8bc3a07065a7b87
         self.current_sequence_id = None
         self.sequence_params = {
             'flip': False,
@@ -114,7 +117,7 @@ class HybridModel(nn.Module):
             nn.LayerNorm(_LSTM_INPUT_SIZE),
             nn.ReLU(),
             nn.Dropout(0.3)
-        )
+        ).to(_DEVICE)
 
         # LSTM (256 -> 128)
         self.lstm = nn.LSTM(
@@ -140,6 +143,15 @@ class HybridModel(nn.Module):
 
         print(f"Successfully Loaded! Using device: {_DEVICE}")
 
+<<<<<<< HEAD
+    def forward(self, tensor_sequence):
+        """Processes input to the hybrid model to detect distracted driving"""
+        # tensor_sequence shape should be [batch_size, seq_len, 512]
+        batch_size, seq_len, feat_dim = tensor_sequence.shape
+        
+        # Combine batch and sequence dimensions
+        reshaped_input = tensor_sequence.view(-1, feat_dim)
+=======
     def extract_features(self, image: Image.Image):
         """Process image through CLIP and return the 512-dim feature"""
         preprocessed = self.preprocessor(image).unsqueeze(0).to(_DEVICE)
@@ -170,6 +182,7 @@ class HybridModel(nn.Module):
     def forward(self, tensor_sequence, view_type):
         # tensor_sequence shape: [batch_size, seq_len, 512]
         batch_size, seq_len, feat_dim = tensor_sequence.shape
+>>>>>>> 90051f9f22d99db678cb7b1cb8bc3a07065a7b87
 
         # View embedding: [batch_size, 64] -> [batch_size, seq_len, 64]
         view_emb = self.view_embedding(view_type.long())
@@ -182,10 +195,16 @@ class HybridModel(nn.Module):
         # Combine features: [batch_size, seq_len, 576]
         combined = torch.cat([attended_features, view_emb], dim=2)
 
+<<<<<<< HEAD
+        # Use the last output state for classification
+        last_state = lstm_output[:, -1, :]
+        output = self.fc(last_state)
+=======
         # Adapter: [batch_size * seq_len, 256]
         flattened = combined.view(-1, _CLIP_OUTPUT_DIM + _VIEW_EMBEDDING_DIM)
         adapted = self.adapter(flattened)
         adapted_sequence = adapted.view(batch_size, seq_len, _LSTM_INPUT_SIZE)
+>>>>>>> 90051f9f22d99db678cb7b1cb8bc3a07065a7b87
 
         # LSTM: [batch_size, seq_len, 128]
         lstm_output, _ = self.lstm(adapted_sequence)
@@ -216,19 +235,31 @@ class HybridModel(nn.Module):
         image = Image.open(frame_path)
 
         # Apply augmentation before CLIP preprocessing
+<<<<<<< HEAD
+        if sequence_id != self.current_sequence_id:
+            self.current_sequence_id = sequence_id
+            self._reset_sequence_params()
+=======
         if True:
             # If this is a new sequence, generate new augmentation parameters
             if sequence_id != self.current_sequence_id:
                 self.current_sequence_id = sequence_id
                 self._reset_sequence_params()
+>>>>>>> 90051f9f22d99db678cb7b1cb8bc3a07065a7b87
 
-            # Apply consistent augmentation
-            image = self._apply_sequence_augmentation(image)
+        # Apply consistent augmentation
+        image = self._apply_sequence_augmentation(image)
 
         preprocessed = self.preprocessor(image).unsqueeze(
             0).to(_DEVICE)  # Open image, preprocess then save to device
 
+<<<<<<< HEAD
+        with torch.no_grad():
+            features = self.clip_model.encode_image(
+                preprocessed)  # Extract features
+=======
         # print(f"Preprocessed: {preprocessed.shape}"); torch.Size([1, 3, 224, 224])
+>>>>>>> 90051f9f22d99db678cb7b1cb8bc3a07065a7b87
 
         # Edit dimension then convert to numpy
         preprocessed = preprocessed.cpu().numpy()
@@ -283,17 +314,17 @@ class HybridModel(nn.Module):
     def _reset_sequence_params(self):
         """Reset augmentation parameters for new sequence with more robust values"""
         self.sequence_params = {
-            'flip': random.random() < 0.5,  # Increased from 0.3
-            'brightness': random.uniform(-0.2, 0.2),  # Increased from ±0.1
-            'contrast': random.uniform(-0.2, 0.2),    # Increased from ±0.1
-            'saturation': random.uniform(-0.2, 0.2),  # Increased from ±0.1
-            'hue': random.uniform(-0.1, 0.1),        # Increased from ±0.05
-            'angle': random.uniform(-5, 5),          # Increased from ±3
+            'flip': random.random() < 0.3,
+            'brightness': random.uniform(-0.1, 0.1),
+            'contrast': random.uniform(-0.1, 0.1),
+            'saturation': random.uniform(-0.1, 0.1),
+            'hue': random.uniform(-0.05, 0.05),
+            'angle': random.uniform(-3, 3),
             'translate': (
-                random.uniform(-0.1, 0.1),           # Increased from ±0.05
-                random.uniform(-0.1, 0.1)
+                random.uniform(-0.05, 0.05),
+                random.uniform(-0.05, 0.05)
             ),
-            'scale': random.uniform(0.9, 1.1)        # Increased from 0.95-1.05
+            'scale': random.uniform(0.95, 1.05)
         }
 
     def _apply_sequence_augmentation(self, image):
@@ -353,10 +384,27 @@ class DisDriveDataset(Dataset):
             # Convert to tensor and add to list
             preprocessed = torch.tensor(preprocessed, device=_DEVICE)
 
+<<<<<<< HEAD
+        # For every feature in feature_path path
+        for feature_file in sorted(os.listdir(feature_path)):
+            # Create path of feature
+            path = os.path.join(
+                feature_path, feature_file)
+
+            # Load feature from disk
+            feature = numpy.load(path)
+            # Add to list
+            features.append(feature)
+
+        # Convert to torch tensor with proper dtype
+        features_tensor = torch.tensor(numpy.array(features), dtype=torch.float32)
+        return torch.tensor(behavior, dtype=torch.long), features_tensor
+=======
             preprocesseds.append(self.hybrid_model.clip_model.encode_image(
                 preprocessed).squeeze(0))  # Extract features then add to list
 
         return torch.tensor(behavior, device='cpu'), torch.stack(preprocesseds).cpu(), torch.tensor(view_type, device='cpu')
+>>>>>>> 90051f9f22d99db678cb7b1cb8bc3a07065a7b87
 
     def __len__(self):
         """Returns length of dataset"""

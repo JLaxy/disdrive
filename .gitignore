@@ -226,3 +226,5 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+Own Dataset
